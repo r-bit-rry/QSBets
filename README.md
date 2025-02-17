@@ -1,0 +1,2 @@
+# QSBets
+Qiryat Hasharon Bets

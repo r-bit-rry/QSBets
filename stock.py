@@ -85,7 +85,7 @@ class Stock:
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched Nasdaq news in {elapsed:.2f} seconds")
         start = time.perf_counter()
-        summarized_news = '[' + ",".join(map(lambda d: partial_ollama_summarize(text=d), news)) + ']'
+        summarized_news = [partial_ollama_summarize(text=d) for d in news]
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Summarized Nasdaq news in {elapsed:.2f} seconds")
         report["nasdaq_news"] = summarized_news
@@ -96,7 +96,7 @@ class Stock:
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched Nasdaq press releases in {elapsed:.2f} seconds")
         start = time.perf_counter()
-        summarized_press_release = '[' + ",".join(map(lambda d: partial_ollama_summarize(text=d), press_releases)) + ']'
+        summarized_press_release = [partial_ollama_summarize(text=d) for d in press_releases]
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Summarized Nasdaq press releases in {elapsed:.2f} seconds")
         report["nasdaq_press_releases"] = summarized_press_release

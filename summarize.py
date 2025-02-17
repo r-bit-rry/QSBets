@@ -83,11 +83,11 @@ def ollama_summarize(symbol: str, text: str) -> str:
                 format=SummaryResponse.model_json_schema(),
                 model="plutus",
                 system=SYSTEM_PROMPT,
-                options={"temperature": 0.05},
+                options={"temperature": 0.7},
             )
             # Optionally validate the JSON response here to ensure it meets the schema.
             summarized_json = SummaryResponse.model_validate_json(response.response)
-            return response.response
+            return summarized_json.model_dump()
         except Exception as e:
             print(f"Attempt {attempt} for symbol {symbol} failed: {e}")
             attempt += 1

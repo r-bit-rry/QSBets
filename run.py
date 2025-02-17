@@ -95,7 +95,7 @@ def main():
         by=["press_news_total_count", "marketCap"], ascending=[False, False]
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
-    aggregated_df = aggregated_df.head(5)
+    aggregated_df = aggregated_df.head(1)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:

@@ -6,7 +6,7 @@ Qiryat Hasharon Bets
 Follow these steps to get started with QSBets.
 
 ### 1. Install the UV Tool
-This project depends on the UV tool. Install it (for example, if using uvicorn):
+This project depends on the UV tool. Install it.
 ```brew
 brew install uv
 ```
@@ -69,10 +69,29 @@ python run.py
 ```
 or run individual scripts as needed (e.g., deepseek.py or stock.py).
 
+## Project Workflow & Pending Tasks
+
+The system follows a clear #codebase flow:
+1. Data is fetched from multiple sources (Nasdaq, news feeds, SEC filings, etc.).
+2. Summaries are generated using Azure OpenAI and Ollama services.
+3. JSON reports are produced.
+4. DeepSeek is used to analyze the reports and generate insights.
+5. High-rated stocks trigger immediate Telegram notifications.
+6. Final markdown report is generated.
+
+**Future Tasks:**
+- ☐ Integrate additional high-quality news sources and ensure structured aggregation.
+- ☐ Develop a dedicated workflow to analyze SEC 10Q and 10K reports.
+- ☐ Conduct competitive analysis for specific stocks and related industries.
+- ☐ Implement a separate sentiment analysis flow from Reddit to filter out noise.
+
 ## Additional Notes
 - **API Keys:** Remember to generate and securely store API keys before running the application.
 - **VENV:** Always activate your virtual environment before installing new packages or running commands.
 - **UV Tool:** If the project requirements change or another uv tool is needed, update the installation command accordingly.
+
+## Contribution Guidelines
+- Feel free to submit issues or pull requests for improvements and bug fixes.
 
 Happy coding!
 

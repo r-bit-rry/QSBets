@@ -9,17 +9,18 @@ from stock import Stock
 
 DEEPSEEK_PROMPT_V1 = 'You are an expert trading advisor for small and mid cap companies.Rate stock buy based on the information I give you, which is the most up-to-date.The rating should be between 0 and 100, where 0 is sell immediatly and stay away and 100 is buy immediatly.Provide a short and concise reasoning. Focus on buying and holding stock for a day to few weeks. Suggest a strategy to enter and exit for the specific stock. Output valid JSON only with the following structure {{"rating": 0-100, "reasoning": "Your reasoning here", "strategy": "Your strategy here"}}. The Stock data:\n\n{loadedDocument}'
 DEEPSEEK_PROMPT_V2 = """You are an expert small/mid-cap advisor. Ground all stock-related knowledge in the last days provided data but use your general knowledge about industry and market. Assign a total score (0-90) by summing eight categories:
-• pressReleases (0-10)  
-• stockNews (0-10)  
-• revenueEarnings (0-20)  
-• shortInterest (0-6)  
-• institutionalHoldings (0-14)  
-• insiderTrading (0-10)  
-• description (0-4)  
-• secFilings (0-16)
+- pressReleases (0-10)  
+- stockNews (0-10)  
+- revenueEarnings (0-20)  
+- shortInterest (0-6)  
+- institutionalHoldings (0-14)  
+- insiderTrading (0-10)  
+- description (0-4)  
+- secFilings (0-16)
+- historicalQuotes (0-10)
 Low score ⇒ Sell/Avoid; High score ⇒ Buy/Hold for 1-few weeks. Briefly explain the key factors and offer buy/exit strategies. Return valid JSON only:
 {{
-  "rating": 0-90,
+  "rating": 0-100,
   "reasoning": "concise explanation",
   "enter_strategy": "entry plan",
   "exit_strategy": "exit plan"

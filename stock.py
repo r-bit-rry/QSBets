@@ -6,6 +6,7 @@ import time
 
 from summarize import azure_openai_summarize, ollama_summarize
 from nasdaq import (
+    fetch_historical_quotes,
     fetch_revenue_earnings,
     fetch_short_interest,
     fetch_institutional_holdings,
@@ -18,9 +19,9 @@ from nasdaq import (
 )
 
 class Stock:
-    def __init__(self, symbol, meta,):
-        self.symbol = symbol
-        self.meta = meta
+    def __init__(self, nasdaq_data):
+        self.meta = nasdaq_data.to_dict()
+        self.symbol = self.meta["symbol"]
 
     def make_json(self):
         report = {}
@@ -62,6 +63,13 @@ class Stock:
         print(f"{self.symbol}: Fetched insider trading in {elapsed:.2f} seconds")
         report["insider_trading"] = json.loads(insider_trading)
 
+        # Historical Stock Data
+        start = time.perf_counter()
+        historical_data = fetch_historical_quotes(self.symbol)
+        elapsed = time.perf_counter() - start
+        print(f"{self.symbol}: Fetched historical stock quotes {elapsed:.2f} seconds")
+        report["historical_quotes"] = json.loads(historical_data)
+
         # SEC Filings (as a summarized string)
         start = time.perf_counter()
         sec_filings = fetch_sec_filings(self.symbol)
@@ -69,7 +77,7 @@ class Stock:
         print(f"{self.symbol}: Fetched SEC filings in {elapsed:.2f} seconds")
         # Using partial ollama summarize for SEC filings summary
         partial_ollama_summarize = partial(ollama_summarize, symbol=f"{self.meta['name']} ({self.meta['symbol']})")
-        report["sec_filings"] = "\n\n".join(sec_filings)
+        report["sec_filings"] = json.loads(sec_filings)
 
         # Nasdaq News
         start = time.perf_counter()
@@ -105,10 +113,11 @@ class Stock:
         print(f"Saved analysis for {self.meta['symbol']} to {file_path}")
         return file_path
 
+
 # Example usage
 if __name__ == "__main__":
     nasdaq_data = fetch_nasdaq_data()
     symbol = "LPTH"
-    meta = nasdaq_data[nasdaq_data["symbol"] == symbol].iloc[0].to_dict()
+    meta = Stock.process_meta(nasdaq_data, symbol)  # modified to use #sym:process_meta
     stock = Stock(symbol=symbol, meta=meta)
     stock.make_json()

@@ -14,16 +14,54 @@ SMALL_CAP_MIN = 100e6  # $100M
 SMALL_CAP_MAX = 9000e6  # $9,000M
 
 
-def process_stock(stock_meta: pd.Series) -> dict:
+def aggregate_group(group: pd.DataFrame) -> pd.Series:
+    aggregated = {
+        "marketCap": group["marketCap"].max(),
+        "press_news_total_count": len(group),
+        "news": list(
+            {
+                f"{row['news_created']} - {row['news_title']}"
+                for _, row in group.iterrows()
+                if pd.notna(row.get("news_title"))
+            }
+        ),
+        "press": list(
+            {
+                f"{row['press_created']} - {row['press_title']}"
+                for _, row in group.iterrows()
+                if pd.notna(row.get("press_title"))
+            }
+        ),
+    }
+    # Maintain other keys as they are
+    single_keys = [
+        "symbol",
+        "name",
+        "lastsale",
+        "netchange",
+        "pctchange",
+        "volume",
+        "country",
+        "ipoyear",
+        "industry",
+        "sector",
+    ]
+    for key in single_keys:
+        if key in group.columns:
+            aggregated[key] = group.iloc[0][key]
+
+    return pd.Series(aggregated)
+
+
+def process_stock(nasdaq_data: pd.Series) -> dict:
     # Extract the full meta dict from the row.
-    meta = stock_meta.to_dict()
     deepseek = DeepSeek()
-    stock = Stock(symbol=meta["symbol"], meta=meta)
+    stock = Stock(nasdaq_data=nasdaq_data)
     doc = stock.make_json()
     recommendation = deepseek.consult(doc)
 
     return {
-        "symbol": meta["symbol"],
+        "symbol": stock.symbol,
         "rating": recommendation.get("rating"),
         "reasoning": recommendation.get("reasoning"),
         "enter_strategy": recommendation.get("enter_strategy"),
@@ -47,23 +85,24 @@ def main():
         print("No small-cap stocks found.")
         return
 
-    # Count total news and press releases per symbol and sort the DataFrame
-    small_cap_df.loc[:, "total_count"] = small_cap_df.groupby("symbol")[
-        "symbol"
-    ].transform("count")
-    small_cap_df = small_cap_df.sort_values(
-        by=["total_count", "marketCap"], ascending=[False, False]
+    # Group by symbol while aggregating news and press info.
+    aggregated_df = (
+        small_cap_df.groupby("symbol", as_index=False)
+        .apply(aggregate_group)
+        .reset_index(drop=True)
     )
-    small_cap_df = small_cap_df.drop_duplicates(subset=["symbol"])
-    print("Total amount of small-cap stocks:", len(small_cap_df))
-
+    aggregated_df = aggregated_df.sort_values(
+        by=["press_news_total_count", "marketCap"], ascending=[False, False]
+    )
+    print("Total amount of small-cap stocks:", len(aggregated_df))
+    aggregated_df = aggregated_df.head(5)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
             # Submit jobs for each stock row
             futures = [
                 executor.submit(process_stock, row)
-                for _, row in small_cap_df.iterrows()
+                for _, row in aggregated_df.iterrows()
             ]
             for future in concurrent.futures.as_completed(futures):
                 try:
@@ -89,7 +128,7 @@ def main():
     except KeyboardInterrupt:
         print("Keyboard interruption received. Saving results collected so far...")
     except Exception as e:
-        print("An error occurred during processing:", e)
+        print(f"An error occurred during processing: {e}")
     finally:
         # Create a DataFrame from the collected results and sort by rating descending
         if results:

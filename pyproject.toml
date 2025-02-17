@@ -1,0 +1,39 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "deepagent"
+version = "0.1.0"
+requires-python = ">=3.12, <3.14"
+dependencies = [
+    "python-dotenv",
+    "ipykernel",
+    "transformers",
+    "numpy",
+    "pydantic",
+    "aiofiles",
+    "playwright",
+    "feedparser",
+    "python-dateutil",
+    "tiktoken",
+    "pandas",
+    "tqdm",
+    "tabulate",
+    "openai>=1.52.2",
+    "pandas>=2.2.3",
+    "selenium",
+    "trafilatura",
+    "azure-ai-inference",
+    "edgartools",
+    "ollama"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["deepagent"]
+
+[tool.poe.tasks]
+test.sequence = [
+    # "playwright install",
+    "pytest -n auto",
+]

@@ -8,7 +8,7 @@ from nasdaq import fetch_nasdaq_data
 from stock import Stock
 
 DEEPSEEK_PROMPT_V1 = 'You are an expert trading advisor for small and mid cap companies.Rate stock buy based on the information I give you, which is the most up-to-date.The rating should be between 0 and 100, where 0 is sell immediatly and stay away and 100 is buy immediatly.Provide a short and concise reasoning. Focus on buying and holding stock for a day to few weeks. Suggest a strategy to enter and exit for the specific stock. Output valid JSON only with the following structure {{"rating": 0-100, "reasoning": "Your reasoning here", "strategy": "Your strategy here"}}. The Stock data:\n\n{loadedDocument}'
-DEEPSEEK_PROMPT_V2 = """You are an expert small/mid-cap advisor. Ground all stock-related knowledge in the last days provided data but use your general knowledge about industry and market. Assign a total score (0-90) by summing eight categories:
+DEEPSEEK_PROMPT_V2 = """You are an expert small/mid-cap advisor. Ground all stock-related knowledge in the last days provided data but use your general knowledge about industry and market. Assign a total score (0-100) by summing following categories:
 - pressReleases (0-10)  
 - stockNews (0-10)  
 - revenueEarnings (0-20)  

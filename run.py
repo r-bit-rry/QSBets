@@ -18,14 +18,14 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
     aggregated = {
         "marketCap": group["marketCap"].max(),
         "press_news_total_count": len(group),
-        "news": list(
+        "news_titles": list(
             {
                 f"{row['news_created']} - {row['news_title']}"
                 for _, row in group.iterrows()
                 if pd.notna(row.get("news_title"))
             }
         ),
-        "press": list(
+        "press_titles": list(
             {
                 f"{row['press_created']} - {row['press_title']}"
                 for _, row in group.iterrows()
@@ -92,10 +92,10 @@ def main():
         .reset_index(drop=True)
     )
     aggregated_df = aggregated_df.sort_values(
-        by=["press_news_total_count", "marketCap"], ascending=[False, False]
+        by=["press_news_total_count", "marketCap"], ascending=[False, True]
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
-    aggregated_df = aggregated_df.head(1)
+    aggregated_df = aggregated_df.head(25)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -114,7 +114,7 @@ def main():
                     except (ValueError, TypeError):
                         rating = 0
 
-                    if rating >= 60:
+                    if rating >= 70:
                         message = (
                             f"<b>Symbol:</b> {result['symbol']}\n"
                             f"<b>Rating:</b> {result['rating']}\n"

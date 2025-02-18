@@ -25,7 +25,8 @@ class Stock:
 
     def make_json(self):
         report = {}
-
+        # Using partial ollama summarize for SEC filings summary
+        partial_ollama_summarize = partial(ollama_summarize, symbol=f"{self.meta['name']} ({self.meta['symbol']})")
         start = time.perf_counter()
         self.description = fetch_description(self.symbol)
         elapsed = time.perf_counter() - start
@@ -75,8 +76,6 @@ class Stock:
         sec_filings = fetch_sec_filings(self.symbol)
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched SEC filings in {elapsed:.2f} seconds")
-        # Using partial ollama summarize for SEC filings summary
-        partial_ollama_summarize = partial(ollama_summarize, symbol=f"{self.meta['name']} ({self.meta['symbol']})")
         report["sec_filings"] = json.loads(sec_filings)
 
         # Nasdaq News
@@ -85,7 +84,12 @@ class Stock:
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched Nasdaq news in {elapsed:.2f} seconds")
         start = time.perf_counter()
-        summarized_news = [partial_ollama_summarize(text=d) for d in news]
+        summarized_news = list(
+            filter(
+                lambda x: x.get("date") is not None and x.get("date") != "",
+                [partial_ollama_summarize(text=d) for d in news],
+            )
+        )
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Summarized Nasdaq news in {elapsed:.2f} seconds")
         report["nasdaq_news"] = summarized_news
@@ -96,7 +100,12 @@ class Stock:
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched Nasdaq press releases in {elapsed:.2f} seconds")
         start = time.perf_counter()
-        summarized_press_release = [partial_ollama_summarize(text=d) for d in press_releases]
+        summarized_press_release = list(
+            filter(
+                lambda x: x.get("date") is not None and x.get("date") != "",
+                [partial_ollama_summarize(text=d) for d in press_releases],
+            )
+        )
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Summarized Nasdaq press releases in {elapsed:.2f} seconds")
         report["nasdaq_press_releases"] = summarized_press_release

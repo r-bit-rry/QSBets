@@ -22,11 +22,11 @@ class SummaryResponse(BaseModel):
 
 SUMMARIZE_PROMPT_V1 = "Summarize the following text in concise and technical bullet points for company symbol {symbol} only, keep relevant figures, numbers and relevant names to be used by further analysis, if no relevant information is provided, return article title and the string, 'no relevant data':\n\n{text}"
 SUMMARIZE_PROMPT_V2 = (
-    "Extract the core points from the document without any fluff, warnings, or recommendations."
-    "Return the extracted information as a valid JSON object in the following format:"
-    '{{"date": "date of the document", "source": "who wrote the document", "summary": "core relevant data to the stock from the document only"}}. '
-    "Include the company symbol {symbol} in your analysis."
-    "If no relevant information is provided, empty JSON object {{}}."
+    "Extract only information directly related to company symbol {symbol}. Ignore any other companies or symbols mentioned. "
+    "Limit the summary to 100 words maximum."
+    "Return valid JSON object in the following format:"
+    '{{"date": "date of the document", "source": "who wrote the document", "summary": "core data about {symbol} only"}}. '
+    "If no relevant information about {symbol} is provided, return empty JSON object {{}}."
     "Analyze the following text:\n\n{text}"
 )
 SYSTEM_PROMPT = "You are a financial summarization assistant. Extract key economic and financial insights from raw webpage text, ignoring unrelated content. Keep each summary concise (2-3 sentences)."
@@ -70,7 +70,7 @@ def azure_openai_summarize(symbol: str, text: str) -> str:
     return summarized_text
 
 
-def ollama_summarize(symbol: str, text: str) -> str:
+def ollama_summarize(symbol: str, text: str) -> SummaryResponse:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.
     """
@@ -79,11 +79,11 @@ def ollama_summarize(symbol: str, text: str) -> str:
     while attempt <= max_attempts:
         try:
             response = ollama_client.generate(
-                prompt=SUMMARIZE_PROMPT_V2.format(symbol=symbol, text=text.strip()),
+                prompt=SUMMARIZE_PROMPT_V2.format(symbol=symbol, text=text),
                 format=SummaryResponse.model_json_schema(),
-                model="plutus",
-                system=SYSTEM_PROMPT,
-                options={"temperature": 0.7},
+                model="plutus8b",
+                # system=SYSTEM_PROMPT,
+                options={"temperature": 0.05},
             )
             # Optionally validate the JSON response here to ensure it meets the schema.
             summarized_json = SummaryResponse.model_validate_json(response.response)

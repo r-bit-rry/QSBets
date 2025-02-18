@@ -85,12 +85,7 @@ class DeepSeek:
 
 def main():
     deepseek = DeepSeek()
-    nasdaq_data = fetch_nasdaq_data()
-    symbol = "ARBE"
-    meta = nasdaq_data[nasdaq_data["symbol"] == symbol].iloc[0].to_dict()
-    stock = Stock(symbol=symbol, meta=meta)
-    doc = stock.make_json()
-    deepseek.consult(doc)
+    deepseek.consult("./analysis_docs/ACHR_2025-02-18.json")
 
 
 if __name__ == "__main__":

@@ -142,11 +142,10 @@ def fetch_stock_press_releases(symbol: str) -> list[str]:
             "title": row.get("title", ""),
             "created": row.get("created", ""),
             "publisher": row.get("publisher", ""),
-            "url": full_url,
         }
         content = safe_retrieve_page(full_url, "txt")
         press_release["content"] = content
-        recent_releases.append(json.dumps(press_release))
+        recent_releases.append(press_release)
     return recent_releases
 
 @cached(ttl_seconds=1800)
@@ -177,7 +176,6 @@ def fetch_stock_news(symbol: str) -> list[str]:
             "title": row.get("title", ""),
             "created": row.get("created", ""),
             "publisher": row.get("publisher", ""),
-            "url": full_url,
         }
         content = safe_retrieve_page(full_url, "txt")
         news_item["content"] = content

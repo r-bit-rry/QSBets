@@ -27,7 +27,7 @@ SUMMARIZE_PROMPT_V1 = "Summarize the following text in concise and technical bul
 SUMMARIZE_PROMPT_V2 = (
     "Summarize in 100 words maximum."
     "Return valid JSON object in the following format:"
-    '{{"date": "date of the document", "source": "who wrote the document", "summary": "core data only", "relevant_symbol": "relevant stock symbol or ticker"}}. '
+    '{{"date": "date of the document", "source": "who wrote the document", "summary": "key point or measure, and its value", "relevant_symbol": "relevant stock symbol or ticker"}}. '
     "Analyze the following text:\n{text}"
 )
 SYSTEM_PROMPT = "You are a financial summarization assistant. Extract key economic and financial insights from raw webpage text, ignoring unrelated content. Keep each summary concise (2-3 sentences)."
@@ -75,7 +75,7 @@ def ollama_summarize(text: str) -> SummaryResponse:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.
     """
-    max_attempts = 3
+    max_attempts = 2
     attempt = 1
     while attempt <= max_attempts:
         try:
@@ -93,4 +93,4 @@ def ollama_summarize(text: str) -> SummaryResponse:
             print(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
-                raise e
+                return SummaryResponse()

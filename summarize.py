@@ -4,6 +4,8 @@ from openai import AzureOpenAI
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from ollama import Client, generate
+
+from chromadb_integration import chromadb_insert
 load_dotenv(".env")
 
 client = AzureOpenAI(
@@ -18,16 +20,15 @@ class SummaryResponse(BaseModel):
     date: str
     source: str
     summary: dict
+    relevant_symbol: str
 
 
 SUMMARIZE_PROMPT_V1 = "Summarize the following text in concise and technical bullet points for company symbol {symbol} only, keep relevant figures, numbers and relevant names to be used by further analysis, if no relevant information is provided, return article title and the string, 'no relevant data':\n\n{text}"
 SUMMARIZE_PROMPT_V2 = (
-    "Extract only information directly related to company symbol {symbol}. Ignore any other companies or symbols mentioned. "
-    "Limit the summary to 100 words maximum."
+    "Summarize in 100 words maximum."
     "Return valid JSON object in the following format:"
-    '{{"date": "date of the document", "source": "who wrote the document", "summary": "core data about {symbol} only"}}. '
-    "If no relevant information about {symbol} is provided, return empty JSON object {{}}."
-    "Analyze the following text:\n\n{text}"
+    '{{"date": "date of the document", "source": "who wrote the document", "summary": "core data only", "relevant_symbol": "relevant stock symbol or ticker"}}. '
+    "Analyze the following text:\n{text}"
 )
 SYSTEM_PROMPT = "You are a financial summarization assistant. Extract key economic and financial insights from raw webpage text, ignoring unrelated content. Keep each summary concise (2-3 sentences)."
 
@@ -69,8 +70,8 @@ def azure_openai_summarize(symbol: str, text: str) -> str:
     summarized_text = response.choices[0].message.content.strip()
     return summarized_text
 
-
-def ollama_summarize(symbol: str, text: str) -> SummaryResponse:
+@chromadb_insert(collection_name="summaries")
+def ollama_summarize(text: str) -> SummaryResponse:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.
     """
@@ -79,7 +80,7 @@ def ollama_summarize(symbol: str, text: str) -> SummaryResponse:
     while attempt <= max_attempts:
         try:
             response = ollama_client.generate(
-                prompt=SUMMARIZE_PROMPT_V2.format(symbol=symbol, text=text),
+                prompt=SUMMARIZE_PROMPT_V2.format(text=text),
                 format=SummaryResponse.model_json_schema(),
                 model="plutus8b",
                 # system=SYSTEM_PROMPT,
@@ -89,7 +90,7 @@ def ollama_summarize(symbol: str, text: str) -> SummaryResponse:
             summarized_json = SummaryResponse.model_validate_json(response.response)
             return summarized_json.model_dump()
         except Exception as e:
-            print(f"Attempt {attempt} for symbol {symbol} failed: {e}")
+            print(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
                 raise e

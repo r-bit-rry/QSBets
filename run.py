@@ -1,9 +1,10 @@
 from datetime import datetime
 import concurrent
-import os  # <-- added import
+import os
 from dotenv import load_dotenv
 import pandas as pd
 
+from chromadb_integration import chromadb_insert
 from deepseek import DeepSeek
 from nasdaq import correlate_stocks_with_news
 from stock import Stock
@@ -53,6 +54,7 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
     return pd.Series(aggregated)
 
 
+@chromadb_insert(collection_name="investment_recommendations")
 def process_stock(nasdaq_data: pd.Series) -> dict:
     # Extract the full meta dict from the row.
     deepseek = DeepSeek()
@@ -98,7 +100,7 @@ def main():
     aggregated_df = aggregated_df.head(25)
     results = []
     try:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             # Submit jobs for each stock row
             futures = [
                 executor.submit(process_stock, row)

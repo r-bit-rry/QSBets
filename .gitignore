@@ -141,3 +141,4 @@ nasdaq_cache.json
 cache/*
 .DS_Store
 reports/
+news_items/*

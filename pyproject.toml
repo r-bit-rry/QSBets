@@ -27,7 +27,8 @@ dependencies = [
     "azure-ai-inference",
     "edgartools",
     "ollama",
-    "diskcache"
+    "diskcache",
+    "chromadb"
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -25,8 +25,6 @@ class Stock:
 
     def make_json(self):
         report = {}
-        # Using partial ollama summarize for SEC filings summary
-        partial_ollama_summarize = partial(ollama_summarize, symbol=f"{self.meta['name']} ({self.meta['symbol']})")
         start = time.perf_counter()
         self.description = fetch_description(self.symbol)
         elapsed = time.perf_counter() - start
@@ -86,8 +84,8 @@ class Stock:
         start = time.perf_counter()
         summarized_news = list(
             filter(
-                lambda x: x.get("date") is not None and x.get("date") != "",
-                [partial_ollama_summarize(text=d) for d in news],
+                lambda x: x.get("relevant_symbol", "") == self.symbol,
+                [ollama_summarize(text=d) for d in news],
             )
         )
         elapsed = time.perf_counter() - start
@@ -102,8 +100,8 @@ class Stock:
         start = time.perf_counter()
         summarized_press_release = list(
             filter(
-                lambda x: x.get("date") is not None and x.get("date") != "",
-                [partial_ollama_summarize(text=d) for d in press_releases],
+                lambda x: x.get("relevant_symbol", "") == self.symbol,
+                [ollama_summarize(text=d) for d in press_releases],
             )
         )
         elapsed = time.perf_counter() - start

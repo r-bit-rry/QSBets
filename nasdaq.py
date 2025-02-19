@@ -142,10 +142,11 @@ def fetch_stock_press_releases(symbol: str) -> list[str]:
             "title": row.get("title", ""),
             "created": row.get("created", ""),
             "publisher": row.get("publisher", ""),
+            "url": full_url,
         }
         content = safe_retrieve_page(full_url, "txt")
         press_release["content"] = content
-        recent_releases.append(press_release)
+        recent_releases.append(json.dumps(press_release))
     return recent_releases
 
 @cached(ttl_seconds=1800)
@@ -176,6 +177,7 @@ def fetch_stock_news(symbol: str) -> list[str]:
             "title": row.get("title", ""),
             "created": row.get("created", ""),
             "publisher": row.get("publisher", ""),
+            "url": full_url,
         }
         content = safe_retrieve_page(full_url, "txt")
         news_item["content"] = content
@@ -434,10 +436,10 @@ def fetch_sec_filings(symbol: str) -> str:
     return json.dumps(filings_content)
 
 @cached(ttl_seconds=1800)
-def fetch_nasdaq_news() -> pd.DataFrame:
+def fetch_nasdaq_news(limit:int = 1000) -> pd.DataFrame:
     """
     Fetch Nasdaq news from the API endpoint:
-    https://www.nasdaq.com/api/news/topic/articlebysymbol?q=offset=0&limit=100&assetclass:stocks
+    https://www.nasdaq.com/api/news/topic/articlebysymbol?q=offset=0&limit=1000&assetclass:stocks
 
     We construct a DataFrame containing a row for each related symbol, with:
       - symbol (extracted from each related_symbols element before the pipe '|'),
@@ -445,7 +447,7 @@ def fetch_nasdaq_news() -> pd.DataFrame:
       - news_created,
       - news_url (ensuring a full URL is provided).
     """
-    news_api_url = "https://www.nasdaq.com/api/news/topic/articlebysymbol?q=offset=0&limit=1000&assetclass:stocks"
+    news_api_url = f"https://www.nasdaq.com/api/news/topic/articlebysymbol?q=offset=0&limit={limit}&assetclass:stocks"
     json_data = fetch_nasdaq_api(news_api_url)
     data = json_data.get("data", {})
     if data is None:
@@ -482,8 +484,7 @@ def fetch_nasdaq_news() -> pd.DataFrame:
     df = pd.DataFrame(processed)
     return df
 
-@cached(ttl_seconds=1800)
-def fetch_nasdaq_press_release() -> pd.DataFrame:
+def fetch_nasdaq_press_release(limit: int = 1000) -> pd.DataFrame:
     """
     Fetch Nasdaq press releases from the API endpoint:
     https://www.nasdaq.com/api/news/topic/press_release?q=assetclass:stocks&limit=200
@@ -494,7 +495,7 @@ def fetch_nasdaq_press_release() -> pd.DataFrame:
       - created,
       - url (ensuring a full URL is provided).
     """
-    press_release_url = "https://www.nasdaq.com/api/news/topic/press_release?q=assetclass:stocks&limit=1000"
+    press_release_url = f"https://www.nasdaq.com/api/news/topic/press_release?q=assetclass:stocks&limit={limit}"
     json_data = fetch_nasdaq_api(press_release_url)
     data = json_data.get("data", {})
     if data is None:

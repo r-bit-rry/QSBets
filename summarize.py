@@ -3,7 +3,7 @@ from openai import AzureOpenAI
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from ollama import Client, generate
+from ollama import Client
 
 from chromadb_integration import chromadb_insert
 load_dotenv(".env")
@@ -70,7 +70,7 @@ def azure_openai_summarize(symbol: str, text: str) -> str:
     summarized_text = response.choices[0].message.content.strip()
     return summarized_text
 
-@chromadb_insert(collection_name="summaries")
+# @chromadb_insert(collection_name="summaries")
 def ollama_summarize(text: str) -> SummaryResponse:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.

@@ -7,10 +7,7 @@ from chromadb.config import Settings
 
 class ChromaDBSaver:
     def __init__(self, collection_name: str, persist_directory: str = "chroma_db"):
-        self.client = chromadb.Client(Settings(
-            chroma_db_impl="duckdb+parquet", 
-            persist_directory=persist_directory
-        ))
+        self.client = chromadb.PersistentClient(path=persist_directory)
         self.collection = self.client.get_or_create_collection(collection_name)
     
     def add_document(self, document: dict, doc_id: str):

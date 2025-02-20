@@ -142,3 +142,4 @@ cache/*
 .DS_Store
 reports/
 news_items/*
+chroma_db/*

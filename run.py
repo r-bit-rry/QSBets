@@ -3,9 +3,10 @@ import concurrent
 import os
 from dotenv import load_dotenv
 import pandas as pd
+import chromadb
 
 from chromadb_integration import chromadb_insert
-from deepseek import DeepSeek
+from deepseek_lc import consult
 from nasdaq import correlate_stocks_with_news
 from stock import Stock
 from utils import send_text_via_telegram
@@ -46,6 +47,7 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
         "ipoyear",
         "industry",
         "sector",
+        "next_earning_call"
     ]
     for key in single_keys:
         if key in group.columns:
@@ -57,10 +59,9 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
 @chromadb_insert(collection_name="investment_recommendations")
 def process_stock(nasdaq_data: pd.Series) -> dict:
     # Extract the full meta dict from the row.
-    deepseek = DeepSeek()
     stock = Stock(nasdaq_data=nasdaq_data)
     doc = stock.make_json()
-    recommendation = deepseek.consult(doc)
+    recommendation = consult(doc)
 
     return {
         "symbol": stock.symbol,
@@ -69,6 +70,22 @@ def process_stock(nasdaq_data: pd.Series) -> dict:
         "enter_strategy": recommendation.get("enter_strategy"),
         "exit_strategy": recommendation.get("exit_strategy"),
     }
+
+
+def summarize_chroma():
+    # Create a persistent client with the same directory used for saving
+    client = chromadb.PersistentClient(path="chroma_db")
+    submission_collection = client.get_or_create_collection("submission")
+    redditor_collection = client.get_or_create_collection("redditor")
+    comment_collection = client.get_or_create_collection("comment")
+    # Retrieve all documents (assuming no filter returns all)
+    submissions = submission_collection.get()  
+    redditors = redditor_collection.get()
+    comments = comment_collection.get()
+    print("Summary from ChromaDB:")
+    print(f"Total submissions: {len(submissions.get('ids', []))}")
+    print(f"Total redditors: {len(redditors.get('ids', []))}")
+    print(f"Total comments: {len(comments.get('ids', []))}")
 
 
 def main():
@@ -94,10 +111,10 @@ def main():
         .reset_index(drop=True)
     )
     aggregated_df = aggregated_df.sort_values(
-        by=["press_news_total_count", "marketCap"], ascending=[False, True]
+        by=["press_news_total_count", "marketCap"], ascending=[True, False]
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
-    aggregated_df = aggregated_df.head(25)
+    aggregated_df = aggregated_df.head(30)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -159,6 +176,9 @@ def main():
         with open(filename, "w", encoding="utf-8") as f:
             f.write(md_content)
         print(f"Investment recommendations saved to {filename}")
+
+    # At the end, after processing stocks, summarize documents from ChromaDB
+    # summarize_chroma()
 
 
 if __name__ == "__main__":

@@ -551,6 +551,80 @@ def fetch_nasdaq_data() -> pd.DataFrame:
     df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce")
     return df
 
+@cached(ttl_seconds=DAY_TTL)
+def fetch_nasdaq_earning_calls() -> pd.DataFrame:
+    """
+      Fetch Nasdaq earnings calls from the API endpoint:
+      https://api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD
+
+      Generates calls for the upcoming week dates, parses the results, and returns a DataFrame.
+      Example of API return:
+      {
+          "data": {
+              "asOf": "Mon, Feb 24, 2025",
+              "headers": { ... },
+              "rows": [
+                  {
+                      "lastYearRptDt": "2/26/2024",
+                      "lastYearEPS": "$1.18",
+                      "time": "time-after-hours",
+                      "symbol": "OKE",
+                      "name": "ONEOK, Inc.",
+                      "marketCap": "$57,618,086,758",
+                      "fiscalQuarterEnding": "Dec/2024",
+                      "epsForecast": "$1.45",
+                      "noOfEsts": "4"
+                  },
+                  ...
+              ]
+          }
+      }
+    """
+    all_rows = []
+    # Loop for upcoming 7 days
+    for i in range(7):
+        current_date = datetime.now() + timedelta(days=i)
+        date_str = current_date.strftime("%Y-%m-%d")
+        earnings_url = f"https://api.nasdaq.com/api/calendar/earnings?date={date_str}"
+        try:
+            json_data = fetch_nasdaq_api(earnings_url)
+        except Exception as e:
+            print(f"[fetch_nasdaq_earning_calls] Error fetching earnings for {date_str}: {e}")
+            continue
+
+        data = json_data.get("data", {})
+        if not data:
+            continue
+
+        rows = data.get("rows", [])
+        # Optionally add the queried date to each row
+        for row in rows:
+            row["callDate"] = date_str
+        all_rows.extend(rows)
+
+    df = pd.DataFrame(all_rows)
+
+    # Create the "next_earning_call" column with only a few specified renamed columns.
+    if not df.empty:
+        mapping = [
+            ("lastYearRptDt", "lastYearReportDate"),
+            ("lastYearEPS", "lastYearEPS"),
+            ("time", "reportTime"),
+            ("fiscalQuarterEnding", "fiscalQuarterEnding"),
+            ("epsForecast", "epsForecast"),
+            ("noOfEsts", "numberOfEstimates"),
+        ]
+        df["next_earning_call"] = df.apply(
+            lambda row: ", ".join(
+                f"{new_key}: {row[old_key]}"
+                for old_key, new_key in mapping
+                if old_key in row and pd.notnull(row[old_key])
+            ),
+            axis=1,
+        )
+    # Return only the `symbol` and `next_earning_call` columns.
+    return df[["symbol", "next_earning_call"]] if not df.empty else df
+
 def correlate_stocks_with_news() -> pd.DataFrame:
     """
     Fetch Nasdaq stock data and press releases, then correlate the two datasets.
@@ -558,13 +632,15 @@ def correlate_stocks_with_news() -> pd.DataFrame:
     stock_data = fetch_nasdaq_data()
     press_releases = fetch_nasdaq_press_release()
     news = fetch_nasdaq_news()
+    earning_calls = fetch_nasdaq_earning_calls()
     # Perform outer merges to get all rows from each source
     merged_all = pd.merge(stock_data, press_releases, on="symbol", how="outer")
     merged_all = pd.merge(merged_all, news, on="symbol", how="outer")
+    merged_all = pd.merge(merged_all, earning_calls, on="symbol", how="outer")
 
     # Drop rows that don't have any news or press release information.
     # Assumes that 'news_title' comes from news and 'press_title' comes from press releases
-    merged_all = merged_all.dropna(subset=["news_title", "press_title"], how="all")
+    merged_all = merged_all.dropna(subset=["news_title", "press_title", "next_earning_calls"], how="all")
 
     # Parse the created dates using the provided format and filter rows
     merged_all["news_created_dt"] = pd.to_datetime(

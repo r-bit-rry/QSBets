@@ -7,6 +7,10 @@ name = "deepagent"
 version = "0.1.1"
 requires-python = ">=3.12, <3.14"
 dependencies = [
+    "langchain-ollama",
+    "langchain-azure-ai",
+    "langchain-chroma",
+    "langchain_community",
     "python-dotenv",
     "ipykernel",
     "transformers",
@@ -28,7 +32,9 @@ dependencies = [
     "edgartools",
     "ollama",
     "diskcache",
-    "chromadb"
+    "chromadb",
+    "rich",
+    "praw"
 ]
 
 [tool.hatch.build.targets.wheel]

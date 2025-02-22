@@ -596,7 +596,7 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
         if not data:
             continue
 
-        rows = data.get("rows", [])
+        rows = data.get("rows") or []
         # Optionally add the queried date to each row
         for row in rows:
             row["callDate"] = date_str
@@ -640,7 +640,7 @@ def correlate_stocks_with_news() -> pd.DataFrame:
 
     # Drop rows that don't have any news or press release information.
     # Assumes that 'news_title' comes from news and 'press_title' comes from press releases
-    merged_all = merged_all.dropna(subset=["news_title", "press_title", "next_earning_calls"], how="all")
+    merged_all = merged_all.dropna(subset=["news_title", "press_title", "next_earning_call"], how="all")
 
     # Parse the created dates using the provided format and filter rows
     merged_all["news_created_dt"] = pd.to_datetime(
@@ -694,4 +694,6 @@ if __name__ == "__main__":
     # revenue_earnings_info = fetch_revenue_earnings(symbol)
     # print(revenue_earnings_info)
     # print(fetch_stock_press_releases(symbol))
-    print(fetch_stock_news(symbol))
+    # print(fetch_stock_news(symbol))
+    df = correlate_stocks_with_news()
+    print(df)

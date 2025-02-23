@@ -367,7 +367,7 @@ def fetch_insider_trading(symbol: str) -> str:
 
     return json.dumps(insider_trading_info)
 
-@cached(ttl_seconds=MONTH_TTL)  # Cache description for longer since it changes less frequently
+@cached(ttl_seconds=MONTH_TTL)
 def fetch_description(symbol: str) -> str:
     """
     Goes to nasdaq API with symbol and fetches description using symbol

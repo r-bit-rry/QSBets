@@ -48,7 +48,7 @@ class ChromaDBSaver:
         )
         print(f"[DEBUG] Document inserted with id {doc_id} into collection {self.collection.name}")
 
-def chromadb_insert(collection_name: str, ttl_seconds: int = None):
+def chromadb_insert(collection_name: str, ttl_seconds: int = 604800):
     """
     A decorator that:
     - calls the decorated function,
@@ -67,9 +67,6 @@ def chromadb_insert(collection_name: str, ttl_seconds: int = None):
             symbol = result.get("symbol", "unknown")
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             doc_id = f"{symbol}_{timestamp}"
-            # Set default TTL to one week (7 days) if none is provided.
-            if ttl_seconds is None:
-                ttl_seconds = 7 * 24 * 3600
             expires_at = datetime.now() + timedelta(seconds=ttl_seconds)
             saver = ChromaDBSaver(collection_name)
             saver.add_document(result, doc_id, expires_at)

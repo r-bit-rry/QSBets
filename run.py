@@ -1,13 +1,14 @@
 from datetime import datetime
 import concurrent
 import os
+import traceback
 from dotenv import load_dotenv
 import pandas as pd
 import chromadb
 
 from chromadb_integration import chromadb_insert
 from deepseek_lc import consult
-from nasdaq import correlate_stocks_with_news
+from nasdaq import DAY_TTL, correlate_stocks_with_news
 from stock import Stock
 from utils import send_text_via_telegram
 
@@ -143,6 +144,7 @@ def main():
                         )
                         send_text_via_telegram(message)
                 except Exception as e:
+                    traceback.print_exc()
                     print(f"Error processing a stock: {e}")
     except KeyboardInterrupt:
         print("Keyboard interruption received. Saving results collected so far...")

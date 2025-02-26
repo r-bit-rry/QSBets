@@ -9,8 +9,7 @@ from trafilatura import extract
 import time
 import json
 from cache import cached
-DAY_TTL = 86400  # 1 day
-MONTH_TTL = 2592000  # 30 days
+from utils import DAY_TTL, MONTH_TTL
 
 NASDAQ_HEADERS = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -607,6 +606,7 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
     # Create the "next_earning_call" column with only a few specified renamed columns.
     if not df.empty:
         mapping = [
+            ("callDate", "callDate"),
             ("lastYearRptDt", "lastYearReportDate"),
             ("lastYearEPS", "lastYearEPS"),
             ("time", "reportTime"),

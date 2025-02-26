@@ -4,6 +4,7 @@ import json
 import os
 import time
 
+from social import fetch_stocks_sentiment
 from summarize import azure_openai_summarize, ollama_summarize
 from nasdaq import (
     fetch_historical_quotes,
@@ -75,6 +76,12 @@ class Stock:
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched SEC filings in {elapsed:.2f} seconds")
         report["sec_filings"] = json.loads(sec_filings)
+
+        start = time.perf_counter()
+        reddit_wsb_sentiment = fetch_stocks_sentiment()
+        elapsed = time.perf_counter() - start
+        print(f"{self.symbol}: Fetched sentiment data in {elapsed:.2f} seconds")
+        report["reddit_wsb_sentiment"] = reddit_wsb_sentiment.get(self.symbol, {})
 
         # Nasdaq News
         start = time.perf_counter()

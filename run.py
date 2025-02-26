@@ -9,6 +9,7 @@ import chromadb
 from chromadb_integration import chromadb_insert
 from deepseek_lc import consult
 from nasdaq import DAY_TTL, correlate_stocks_with_news
+from social import correlate_stocks_with_sentiment
 from stock import Stock
 from utils import send_text_via_telegram
 
@@ -48,7 +49,8 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
         "ipoyear",
         "industry",
         "sector",
-        "next_earning_call"
+        "next_earning_call",
+        "sentiment_rating"
     ]
     for key in single_keys:
         if key in group.columns:
@@ -98,6 +100,7 @@ def main():
     """
     # Fetch full Nasdaq data with caching
     df = correlate_stocks_with_news()
+    df = correlate_stocks_with_sentiment(df)
     small_cap_df = df[
         (df["marketCap"] >= SMALL_CAP_MIN) & (df["marketCap"] <= SMALL_CAP_MAX)
     ]
@@ -112,10 +115,10 @@ def main():
         .reset_index(drop=True)
     )
     aggregated_df = aggregated_df.sort_values(
-        by=["press_news_total_count", "marketCap"], ascending=[True, False]
+        by=["sentiment_rating", "press_news_total_count", "marketCap"], ascending=[False, False, False]
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
-    aggregated_df = aggregated_df.head(30)
+    aggregated_df = aggregated_df.head(100)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:

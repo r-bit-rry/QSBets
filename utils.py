@@ -110,3 +110,8 @@ def fill_template(params: object, stock: pd.Series) -> str:
     params["q"] = template_filled
     params["freshness"] = freshness_filled
     return params
+
+
+DAY_TTL = 86400  # 1 day
+WEEK_TTL = 604800  # 7 days
+MONTH_TTL = 2592000  # 30 days

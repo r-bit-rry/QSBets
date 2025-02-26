@@ -81,7 +81,7 @@ class Stock:
         reddit_wsb_sentiment = fetch_stocks_sentiment()
         elapsed = time.perf_counter() - start
         print(f"{self.symbol}: Fetched sentiment data in {elapsed:.2f} seconds")
-        report["reddit_wsb_sentiment"] = reddit_wsb_sentiment.get(self.symbol, {})
+        report["reddit_wallstreetbets_sentiment"] = reddit_wsb_sentiment.get(self.symbol, {})
 
         # Nasdaq News
         start = time.perf_counter()

@@ -50,7 +50,8 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
         "industry",
         "sector",
         "next_earning_call",
-        "sentiment_rating"
+        "sentiment_rating",
+        "days_to_earnings",
     ]
     for key in single_keys:
         if key in group.columns:
@@ -114,8 +115,36 @@ def main():
         .apply(aggregate_group)
         .reset_index(drop=True)
     )
+    aggregated_df['days_to_earnings'] = aggregated_df['days_to_earnings'] if 'days_to_earnings' in aggregated_df.columns else (
+        aggregated_df['next_earning_date'].apply(
+            lambda x: (pd.to_datetime(x) - pd.Timestamp.now()).days if pd.notna(x) else 999
+        )
+    )
+
+    # Convert percentage change to numeric for proper sorting
+    aggregated_df["pctchange"] = pd.to_numeric(
+        aggregated_df["pctchange"].str.replace("%", ""), errors="coerce"
+    ).abs()
+
+    aggregated_df['volume'] = pd.to_numeric(aggregated_df['volume'], errors='coerce')
+
+    aggregated_df['next_day_potential'] = (
+        # Earnings within 0-2 days get highest priority
+        (aggregated_df['days_to_earnings'] <= 2) * 1000 +
+        # Social sentiment has strong impact on retail-driven stocks
+        (aggregated_df['sentiment_rating'].fillna(0) * 5) +
+        # Recent price volatility indicates ongoing interest
+        aggregated_df['pctchange_numeric'].fillna(0) * 2 +
+        # News coverage drives interest and potential movement
+        aggregated_df['press_news_total_count'].fillna(0) * 5 +
+        # High volume indicates liquidity and interest
+        aggregated_df['volume'].fillna(0) / 1000
+    )
+
+    # Sort by our composite next_day_potential score
     aggregated_df = aggregated_df.sort_values(
-        by=["sentiment_rating", "press_news_total_count", "marketCap"], ascending=[False, False, False]
+        by=['next_day_potential'], 
+        ascending=False
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
     aggregated_df = aggregated_df.head(100)

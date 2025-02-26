@@ -111,7 +111,7 @@ def fill_template(params: object, stock: pd.Series) -> str:
     params["freshness"] = freshness_filled
     return params
 
-
+HOURS2_TTL = 7200  # 2 hours
 DAY_TTL = 86400  # 1 day
 WEEK_TTL = 604800  # 7 days
 MONTH_TTL = 2592000  # 30 days

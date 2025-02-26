@@ -553,31 +553,36 @@ def fetch_nasdaq_data() -> pd.DataFrame:
 @cached(ttl_seconds=DAY_TTL)
 def fetch_nasdaq_earning_calls() -> pd.DataFrame:
     """
-      Fetch Nasdaq earnings calls from the API endpoint:
-      https://api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD
+    Fetch Nasdaq earnings calls for the upcoming week and return structured data
+    for better sorting and prioritization in trading strategies.
 
-      Generates calls for the upcoming week dates, parses the results, and returns a DataFrame.
-      Example of API return:
-      {
-          "data": {
-              "asOf": "Mon, Feb 24, 2025",
-              "headers": { ... },
-              "rows": [
-                  {
-                      "lastYearRptDt": "2/26/2024",
-                      "lastYearEPS": "$1.18",
-                      "time": "time-after-hours",
-                      "symbol": "OKE",
-                      "name": "ONEOK, Inc.",
-                      "marketCap": "$57,618,086,758",
-                      "fiscalQuarterEnding": "Dec/2024",
-                      "epsForecast": "$1.45",
-                      "noOfEsts": "4"
-                  },
-                  ...
-              ]
-          }
-      }
+    Returns a DataFrame containing earnings call information with both:
+    1. Individual fields for algorithmic sorting/filtering
+    2. A formatted 'next_earning_call' text field for display purposes
+    https://api.nasdaq.com/api/calendar/earnings?date=YYYY-MM-DD
+
+    Generates calls for the upcoming week dates, parses the results, and returns a DataFrame.
+    Example of API return:
+    {
+        "data": {
+            "asOf": "Mon, Feb 24, 2025",
+            "headers": { ... },
+            "rows": [
+                {
+                    "lastYearRptDt": "2/26/2024",
+                    "lastYearEPS": "$1.18",
+                    "time": "time-after-hours",
+                    "symbol": "OKE",
+                    "name": "ONEOK, Inc.",
+                    "marketCap": "$57,618,086,758",
+                    "fiscalQuarterEnding": "Dec/2024",
+                    "epsForecast": "$1.45",
+                    "noOfEsts": "4"
+                },
+                ...
+            ]
+        }
+    }
     """
     all_rows = []
     # Loop for upcoming 7 days
@@ -596,15 +601,24 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
             continue
 
         rows = data.get("rows") or []
-        # Optionally add the queried date to each row
+        # Add the queried date to each row
         for row in rows:
             row["callDate"] = date_str
         all_rows.extend(rows)
 
     df = pd.DataFrame(all_rows)
 
-    # Create the "next_earning_call" column with only a few specified renamed columns.
-    if not df.empty:
+    if df.empty:
+        return df
+
+    try:
+        # Convert callDate to datetime for easier sorting/comparison
+        df["earnings_date"] = pd.to_datetime(df["callDate"])
+
+        # Calculate days until earnings (for sorting)
+        df["days_to_earnings"] = (df["earnings_date"] - pd.Timestamp.now()).dt.days
+
+        # Create the human-readable next_earning_call string
         mapping = [
             ("callDate", "callDate"),
             ("lastYearRptDt", "lastYearReportDate"),
@@ -622,8 +636,20 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
             ),
             axis=1,
         )
-    # Return only the `symbol` and `next_earning_call` columns.
-    return df[["symbol", "next_earning_call"]] if not df.empty else df
+
+        # Return only the necessary columns
+        return df[["symbol", "next_earning_call", "days_to_earnings"]]
+
+    except Exception as e:
+        print(f"[fetch_nasdaq_earning_calls] Error processing earnings data: {e}")
+        # In case of errors, still try to return the minimal data
+        if "callDate" in df.columns and "symbol" in df.columns:
+            df["next_earning_call"] = df.apply(
+                lambda row: f"callDate: {row['callDate']}", axis=1
+            )
+            df["days_to_earnings"] = None
+            return df[["symbol", "next_earning_call", "days_to_earnings"]]
+        return pd.DataFrame(columns=["symbol", "next_earning_call", "days_to_earnings"])
 
 def correlate_stocks_with_news() -> pd.DataFrame:
     """

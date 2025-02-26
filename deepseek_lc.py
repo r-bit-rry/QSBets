@@ -12,14 +12,19 @@ DS_Model = os.getenv("AZURE_FOUNDRY_DEEPSEEK")
 DS_Region = "eastus"
 DS_Endpoint = f"https://{DS_Model}.{DS_Region}.models.ai.azure.com"
 
-model = AzureAIChatCompletionsModel(
-    endpoint=DS_Endpoint,
-    credential=AzureKeyCredential(os.getenv("DEEPSEEK_API_KEY")),
-    max_tokens=2048,
-    temperature=0.6,
-    top_p=0.95,
-    model_kwargs={"stream_options": {"include_usage": True}},
-)
+def get_model():
+    try:
+        return AzureAIChatCompletionsModel(
+            endpoint=DS_Endpoint,
+            credential=AzureKeyCredential(os.getenv("DEEPSEEK_API_KEY")),
+            max_tokens=2048,
+            temperature=0.6,
+            top_p=0.95,
+            model_kwargs={"stream_options": {"include_usage": True}},
+        )
+    except Exception as e:
+        print(f"Error initializing model: {e}")
+        raise
 
 DEEPSEEK_PROMPT_V3 = PromptTemplate(
     input_variables=["loadedDocument"],
@@ -54,6 +59,7 @@ def decode_response(content: str):
     return parsed_json
 
 def consult(filepath: str):
+    model = get_model()
     try:
         document = open(filepath).read()
         chain = DEEPSEEK_PROMPT_V3 | model 

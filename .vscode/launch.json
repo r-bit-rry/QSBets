@@ -3,7 +3,7 @@
   "configurations": [
     {
       "name": "Python: Run run.py",
-      "type": "python",
+      "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/run.py",
       "console": "integratedTerminal",

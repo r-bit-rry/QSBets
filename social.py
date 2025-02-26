@@ -9,7 +9,7 @@ from trafilatura import extract
 import time
 import json
 from cache import cached
-from utils import DAY_TTL
+from utils import HOURS2_TTL
 
 
 HEADERS = {
@@ -45,52 +45,25 @@ def safe_parse_date(date_str: str, fmt: str) -> datetime | None:
         return None
 
 
-@cached(ttl_seconds=DAY_TTL)
-def fetch_api(url: str) -> dict:
-    """
-    Fetch data from the Nasdaq API using the provided URL.
-    """
-    refresh_nasdaq_cookie()
-    response = requests.get(url, headers=HEADERS.copy())
-    response.raise_for_status()
-    return response.json()
+def safe_convert_to_int(value):
+    """Safely convert a value to integer, returning None if conversion fails."""
+    try:
+        return int(value) if value is not None else None
+    except (ValueError, TypeError):
+        return None
 
 
-def refresh_nasdaq_cookie():
-    """
-    Uses Selenium to open Nasdaq's homepage and retrieve a fresh cookie.
-    Requires Selenium and a webdriver (e.g., ChromeDriver) installed and in PATH.
-    """
-    global last_cookie_refresh_time
-    if (
-        last_cookie_refresh_time is None
-        or (datetime.now() - last_cookie_refresh_time).total_seconds() > 1800
-    ):
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--disable-gpu")
-        driver = webdriver.Chrome(options=options)
-        try:
-            driver.get("https://www.nasdaq.com")
-            time.sleep(5)
-            cookies = driver.get_cookies()
-            # Fix: Join each cookie string correctly.
-            cookie_str = "; ".join(
-                f"{cookie['name']}={cookie['value']}" for cookie in cookies
-            )
-            HEADERS["cookie"] = cookie_str
-            last_cookie_refresh_time = datetime.now()
-        finally:
-            driver.quit()
-
-
-@cached(ttl_seconds=DAY_TTL)
-def fetch_stocks_sentiment(timeframe: str = "24+hours"):
+@cached(ttl_seconds=HOURS2_TTL)
+def fetch_stocks_sentiment(timeframe: str = "24+hours") -> dict:
     """
     Fetches stock wallstreetbets sentiment analysis from
     https://api.beta.swaggystocks.com/wsb/sentiment/rating?timeframe={timeframe}
 
-    timeframe: 1+week, 12+hours, 24+hours
+    Args:
+        timeframe: Time period for data (options: "1+week", "12+hours", "24+hours")
+
+    Returns:
+        Dictionary mapping tickers to their sentiment data with cleaned field names
 
     Response looks like:
     [
@@ -108,40 +81,66 @@ def fetch_stocks_sentiment(timeframe: str = "24+hours"):
             "30_day_avg_iv": 66.60000085830688,
             "unusual_option_volume": None
         },
-        {
-            "ticker": "PLTR",
-            "sentiment_rating": 0,
-            "timestamp": 1739897373,
-            "positive": "574",
-            "neutral": "2289",
-            "negative": "666",
-            "total": "3529",
-            "next_earnings_date": "2025-05-05T00:00:00.000Z",
-            "market_cap": 237702217656,
-            "options_oi_call_ratio": "0.54221248",
-            "30_day_avg_iv": 71.63000106811523,
-            "unusual_option_volume": None
-        },
         ...
     ]
     """
     url = f"https://api.beta.swaggystocks.com/wsb/sentiment/rating?timeframe={timeframe}"
+    field_mappings = {
+        "sentiment_rating": "sentiment_score_from_neg10_to_pos10",
+        "positive": "positive_reddit_mentions",
+        "neutral": "neutral_reddit_mentions",
+        "negative": "negative_reddit_mentions",
+        "options_oi_call_ratio": "calls_to_put_open_interest_ratio",
+    }
+
+    skip_fields = {"ticker", "timestamp", "market_cap"}
+    mapping = {}
+
     try:
         response = requests.get(url, headers=HEADERS)
         response.raise_for_status()
         data = response.json()
-        mapping = {}
-        if isinstance(data, list):
-            for ticker_data in data:
-                ticker = ticker_data.get("ticker")
-                if ticker:
-                    cleaned_data = ticker_data.copy()
-                    cleaned_data.pop("ticker", None)
-                    cleaned_data.pop("timestamp", None)
-                    cleaned_data.pop("market_cap", None)
-                    mapping[ticker] = cleaned_data
+
+        if not isinstance(data, list):
+            print(f"[fetch_stocks_sentiment] Unexpected data format: {type(data)}")
+            return mapping
+
+        for ticker_data in data:
+            ticker = ticker_data.get("ticker")
+            if not ticker:
+                continue
+
+            cleaned_data = {}
+
+            # Process all fields with appropriate transformations
+            for key, value in ticker_data.items():
+                if key in skip_fields:
+                    continue
+
+                # Handle next_earnings_date specially
+                if key == "next_earnings_date" and value:
+                    try:
+                        cleaned_data[key] = (
+                            value.split("T")[0] if "T" in value else value
+                        )
+                    except (AttributeError, IndexError):
+                        cleaned_data[key] = value
+                # Map field names according to our dictionary
+                elif key in field_mappings:
+                    cleaned_data[field_mappings[key]] = value
+                # Keep other fields as-is
+                else:
+                    cleaned_data[key] = value
+
+            mapping[ticker] = cleaned_data
+
+    except requests.RequestException as e:
+        print(f"[fetch_stocks_sentiment] Request error: {e}")
+    except json.JSONDecodeError as e:
+        print(f"[fetch_stocks_sentiment] JSON decode error: {e}")
     except Exception as e:
-        print(f"[fetch_stocks_sentiment] Error fetching sentiment data: {e}")
+        print(f"[fetch_stocks_sentiment] Unexpected error: {e}")
+
     return mapping
 
 
@@ -149,24 +148,28 @@ def correlate_stocks_with_sentiment(df: pd.DataFrame) -> pd.DataFrame:
     """
     Correlate stocks with their sentiment rating.
 
-    This function extracts only the 'sentiment_rating' for each symbol from
-    the sentiment API data, converts the rating to an integer, and merges it
-    with the provided DataFrame on the 'symbol' column.
+    Args:
+        df: DataFrame with a 'symbol' column to merge with sentiment data
+
+    Returns:
+        DataFrame with sentiment data added
     """
     sentiment_data = fetch_stocks_sentiment()
 
-    # Build a DataFrame with only the symbol and its sentiment_rating as an integer.
-    ratings = []
-    for symbol, data in sentiment_data.items():
-        rating_value = data.get("sentiment_rating")
-        try:
-            rating_int = int(rating_value)
-        except (ValueError, TypeError):
-            rating_int = None
-        ratings.append({"symbol": symbol, "sentiment_rating": rating_int})
+    # Extract sentiment scores with proper error handling
+    ratings = [
+        {
+            "symbol": symbol,
+            "sentiment_rating": safe_convert_to_int(
+                data.get("sentiment_score_from_neg10_to_pos10")
+            ),
+        }
+        for symbol, data in sentiment_data.items()
+    ]
 
-    sentiment_df = pd.DataFrame(ratings)
-
-    # Merge provided DataFrame with sentiment ratings on symbol.
-    merged_df = pd.merge(df, sentiment_df, on="symbol", how="outer")
-    return merged_df
+    sentiment_df = (
+        pd.DataFrame(ratings)
+        if ratings
+        else pd.DataFrame(columns=["symbol", "sentiment_rating"])
+    )
+    return pd.merge(df, sentiment_df, on="symbol", how="outer")

@@ -1,5 +1,7 @@
 from datetime import datetime
 import os
+import random
+import time
 from azure.core.credentials import AzureKeyCredential
 from dotenv import load_dotenv
 import json
@@ -12,19 +14,31 @@ DS_Model = os.getenv("AZURE_FOUNDRY_DEEPSEEK")
 DS_Region = "eastus"
 DS_Endpoint = f"https://{DS_Model}.{DS_Region}.models.ai.azure.com"
 
+_model_instance = None
+
 def get_model():
-    try:
-        return AzureAIChatCompletionsModel(
-            endpoint=DS_Endpoint,
-            credential=AzureKeyCredential(os.getenv("DEEPSEEK_API_KEY")),
-            max_tokens=2048,
-            temperature=0.6,
-            top_p=0.95,
-            model_kwargs={"stream_options": {"include_usage": True}},
-        )
-    except Exception as e:
-        print(f"Error initializing model: {e}")
-        raise
+    """
+    Returns a static instance of AzureAIChatCompletionsModel.
+    Creates it once and reuses it for subsequent calls.
+    """
+    global _model_instance
+
+    if _model_instance is None:
+        try:
+            _model_instance = AzureAIChatCompletionsModel(
+                endpoint=DS_Endpoint,
+                credential=AzureKeyCredential(os.getenv("DEEPSEEK_API_KEY")),
+                max_tokens=2048,
+                temperature=0.6,
+                top_p=0.95,
+                model_kwargs={"stream_options": {"include_usage": True}},
+            )
+        except Exception as e:
+            print(f"Error initializing model: {e}")
+            raise
+
+    return _model_instance
+
 
 DEEPSEEK_PROMPT_V3 = PromptTemplate(
     input_variables=["loadedDocument"],
@@ -58,26 +72,53 @@ def decode_response(content: str):
         parsed_json = {}
     return parsed_json
 
-def consult(filepath: str):
+
+def consult(filepath: str, max_retries: int = 5, base_delay: float = 2.0):
+    """
+    Consult the Deepseek model with a file, implementing retry with exponential backoff
+
+    Args:
+        filepath: Path to the file to analyze
+        max_retries: Maximum number of retry attempts
+        base_delay: Base delay in seconds for backoff
+
+    Returns:
+        Parsed JSON response or empty dict on failure
+    """
     model = get_model()
-    try:
-        document = open(filepath).read()
-        chain = DEEPSEEK_PROMPT_V3 | model 
-        response = chain.stream({"loadedDocument": document})
-        content = []
-        for chunk in response:
-            print(chunk.content, end="", flush=True)
-            content.append(chunk.content)
+    retry_count = 0
 
-        # TODO fix usage on straming api
-        # print("Usage:")
-        # print("\tPrompt tokens:", response.usage_metadata["input_tokens"])
-        # print("\tCompletion tokens:", response.usage_metadata["output_tokens"])
-        # print("\tTotal tokens:", response.usage_metadata["total_tokens"])
+    while retry_count <= max_retries:
+        try:
+            document = open(filepath).read()
+            chain = DEEPSEEK_PROMPT_V3 | model
+            response = chain.stream({"loadedDocument": document})
+            content = []
+            for chunk in response:
+                print(chunk.content, end="", flush=True)
+                content.append(chunk.content)
 
-        return decode_response("".join(content))
-    except Exception as e:
-        print(f"Error: {e}")
+            return decode_response("".join(content))
+
+        except Exception as e:
+            error_message = str(e).lower()
+            if "too many requests" in error_message or "timeout" in error_message:
+                retry_count += 1
+                if retry_count > max_retries:
+                    print(f"Failed after {max_retries} retries: {e}")
+                    return {}
+
+                # Calculate exponential backoff with jitter
+                delay = base_delay * (2 ** (retry_count - 1)) + random.uniform(0, 1)
+                print(
+                    f"Rate limited or timeout. Retrying in {delay:.2f} seconds... (Attempt {retry_count}/{max_retries})"
+                )
+                time.sleep(delay)
+            else:
+                # For other errors, don't retry
+                print(f"Error: {e}")
+                return {}
+
 
 def analyze_folder(folder: str):
     today_str = datetime.now().strftime("%Y-%m-%d")

@@ -134,7 +134,7 @@ def main():
         # Social sentiment has strong impact on retail-driven stocks
         (aggregated_df['sentiment_rating'].fillna(0) * 5) +
         # Recent price volatility indicates ongoing interest
-        aggregated_df['pctchange_numeric'].fillna(0) * 2 +
+        aggregated_df['pctchange'].fillna(0) * 2 +
         # News coverage drives interest and potential movement
         aggregated_df['press_news_total_count'].fillna(0) * 5 +
         # High volume indicates liquidity and interest

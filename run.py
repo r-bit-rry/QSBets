@@ -16,7 +16,39 @@ from telegram import send_text_via_telegram, format_investment_message
 # Constants for small-cap filter (in USD)
 SMALL_CAP_MIN = 100e6  # $100M
 SMALL_CAP_MAX = 9000e6  # $9,000M
-STOCKS_TO_ANALYZE = 20
+STOCKS_TO_ANALYZE = 200
+
+def export_to_markdown(results: list):
+    """
+    Exports investment recommendations to a Markdown file.
+    Create a DataFrame from the collected results and sort by rating descending
+    """
+    if results:
+        recommendations_df = pd.DataFrame(results)
+        recommendations_df["rating"] = pd.to_numeric(
+            recommendations_df["rating"], errors="coerce"
+        )
+        recommendations_df = recommendations_df.sort_values(
+            by="rating", ascending=False
+        )
+    else:
+        recommendations_df = pd.DataFrame()
+        print("No recommendations to save.")
+
+    # Create the "reports" folder if it doesn't exist.
+    os.makedirs("reports", exist_ok=True)
+    # Create a datetime stamp in format YYYYMMDD_HHMM
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+    md_content = f"# Investment Recommendations - {timestamp}\n\n"
+    if not recommendations_df.empty:
+        md_content += recommendations_df.to_markdown(index=False)
+    else:
+        md_content += "No recommendations available."
+
+    filename = f"reports/investment_recommendation_{timestamp}.md"  # updated path
+    with open(filename, "w", encoding="utf-8") as f:
+        f.write(md_content)
+    print(f"Investment recommendations saved to {filename}")
 
 def aggregate_group(group: pd.DataFrame) -> pd.Series:
     aggregated = {
@@ -61,19 +93,32 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
 
 
 # @chromadb_insert(collection_name="investment_recommendations")
-def process_stock(nasdaq_data: pd.Series) -> dict:
+def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True) -> dict:
     # Extract the full meta dict from the row.
     stock = Stock(nasdaq_data=nasdaq_data)
     doc = stock.make_json()
     recommendation = consult(doc)
-
-    return {
+    result = {
         "symbol": stock.symbol,
         "rating": recommendation.get("rating"),
         "reasoning": recommendation.get("reasoning"),
         "enter_strategy": format_strategy(recommendation.get("enter_strategy", {})),
         "exit_strategy": format_strategy(recommendation.get("exit_strategy", {})),
     }
+    if with_telegram:
+        try:
+            rating = float(recommendation.get("rating"))
+        except (ValueError, TypeError):
+            rating = 0
+        try:
+            if rating > 70:
+                message = format_investment_message(result)
+                send_text_via_telegram(message)
+        except Exception as e: 
+            traceback.print_exc()
+            print(f"Error sending Telegram message: {e}")
+
+    return result
 
 def format_strategy(strategy: dict) -> str:
     return "\n".join([f"{key}: {value}" for key, value in strategy.items()])
@@ -154,62 +199,21 @@ def main():
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
-            # Submit jobs for each stock row
-            futures = [
-                executor.submit(process_stock, row)
-                for _, row in aggregated_df.iterrows()
-            ]
-            for future in concurrent.futures.as_completed(futures):
-                try:
-                    result = future.result()
-                    results.append(result)
-                    try:
-                        # Convert rating to float for comparison; if conversion fails skip immediate messaging.
-                        rating = float(result["rating"])
-                    except (ValueError, TypeError):
-                        rating = 0
-
-                    if rating > 70:
-                        message = format_investment_message(result)
-                        send_text_via_telegram(message)
-                except Exception as e:
-                    traceback.print_exc()
-                    print(f"Error processing a stock: {e}")
+            # executor.map will automatically assign tasks to idle workers.
+            # Note: We pass generator that yields each row.
+            results = list(
+                executor.map(
+                    process_stock,
+                    (row for _, row in aggregated_df.iterrows())
+                )
+            )
     except KeyboardInterrupt:
         print("Keyboard interruption received. Saving results collected so far...")
     except Exception as e:
         print(f"An error occurred during processing: {e}")
+        traceback.print_exc()
     finally:
-        # Create a DataFrame from the collected results and sort by rating descending
-        if results:
-            recommendations_df = pd.DataFrame(results)
-            recommendations_df["rating"] = pd.to_numeric(
-                recommendations_df["rating"], errors="coerce"
-            )
-            recommendations_df = recommendations_df.sort_values(
-                by="rating", ascending=False
-            )
-        else:
-            recommendations_df = pd.DataFrame()
-            print("No recommendations to save.")
-
-        # Create the "reports" folder if it doesn't exist.
-        os.makedirs("reports", exist_ok=True)
-        # Create a datetime stamp in format YYYYMMDD_HHMM
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        md_content = f"# Investment Recommendations - {timestamp}\n\n"
-        if not recommendations_df.empty:
-            md_content += recommendations_df.to_markdown(index=False)
-        else:
-            md_content += "No recommendations available."
-
-        filename = f"reports/investment_recommendation_{timestamp}.md"  # updated path
-        with open(filename, "w", encoding="utf-8") as f:
-            f.write(md_content)
-        print(f"Investment recommendations saved to {filename}")
-
-    # At the end, after processing stocks, summarize documents from ChromaDB
-    # summarize_chroma()
+        export_to_markdown(results)
 
 
 if __name__ == "__main__":

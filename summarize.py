@@ -1,4 +1,5 @@
 import os
+from typing import Any
 from openai import AzureOpenAI
 
 from dotenv import load_dotenv
@@ -37,7 +38,7 @@ SYSTEM_PROMPT = "You are a financial summarization assistant. Extract key econom
 
 ollama_client = Client(
     host="http://127.0.0.1:11434",
-    timeout=300,
+    timeout=600,
 )
 
 def azure_openai_summarize(symbol: str, text: str) -> str:
@@ -72,8 +73,9 @@ def azure_openai_summarize(symbol: str, text: str) -> str:
     summarized_text = response.choices[0].message.content.strip()
     return summarized_text
 
+
 @cached(MONTH_TTL)
-def ollama_summarize(text: str, prompt_version=2) -> SummaryResponse:
+def ollama_summarize(text: str, prompt_version=2) -> dict[str, Any]:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.
     """
@@ -95,7 +97,7 @@ def ollama_summarize(text: str, prompt_version=2) -> SummaryResponse:
             print(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
-                return SummaryResponse()
+                return {}
 
 
 def main():

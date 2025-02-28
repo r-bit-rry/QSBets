@@ -43,7 +43,9 @@ def get_model():
 DEEPSEEK_PROMPT_V3 = PromptTemplate(
     input_variables=["loadedDocument"],
     template="""Rate stock, use the stock provided data and your general knowledge about industry and market.
-Low score ⇒ Sell/Avoid; High score ⇒ Buy/Hold for a few weeks. Briefly explain the key factors and offer buy/exit strategies. Return valid JSON only:
+Low score ⇒ Sell/Avoid; High score ⇒ Buy/Hold for a few weeks. Briefly explain the key factors and offer buy/exit strategies.
+Describe your strategy with using the technical trading terms available to me (you don't have to use all of them): Price Greater/Lower than, Trading Volume, Start Date, P/B Ratio, P/E Ratio, ADX, RSI, ROC, Parabolic SAR, MACD, StdDev, SMA 20/50/100, Bollinger Bands, VWAP, Benchmark Index, profit, loss, price target, end date.
+Return valid JSON only:
 {{
   "rating": 0-100,
   "reasoning": "concise explanation",
@@ -53,6 +55,55 @@ Low score ⇒ Sell/Avoid; High score ⇒ Buy/Hold for a few weeks. Briefly expla
 
 Stock data:
 {loadedDocument}"""
+)
+
+DEEPSEEK_PROMPT_V4 = PromptTemplate(
+    input_variables=["loadedDocument"],
+    template="""You are an expert stock analyst with deep knowledge of both technical and fundamental analysis. Analyze the provided stock data comprehensively.
+
+First, examine all available information including:
+- Price action and technical indicators
+- Social sentiment and news coverage
+- Upcoming earnings and company events
+- Sector trends and comparative performance
+- Recent volume patterns
+
+Rate the stock on a scale of 0-100 where:
+- 0-30: Strong Sell (High risk, negative outlook)
+- 31-45: Sell (Underperform, concerning signals)
+- 46-55: Hold/Neutral (Mixed signals, unclear direction)
+- 56-70: Buy (Favorable outlook, good potential)
+- 71-100: Strong Buy (Excellent setup, high conviction)
+
+Consider both short-term catalysts (1-5 days) and medium-term outlook (2-4 weeks).
+
+Return your analysis in this JSON format:
+{{
+  "rating": 0-100,
+  "confidence": 1-10,
+  "primary_catalysts": "Top 2-3 factors driving your rating",
+  "risk_factors": "Key risks that could invalidate your thesis",
+  "reasoning": "Concise explanation of your rating rationale",
+  "technical_analysis": "Key technical signals from the data",
+  "sentiment_analysis": "Assessment of news sentiment and social signals",
+  "enter_strategy": {{
+    "entry_price": "Specific price or condition",
+    "entry_timing": "Immediate or specific condition",
+    "technical_indicators": "Key technical indicators supporting entry"
+  }},
+  "exit_strategy": {{
+    "profit_target": "Price target or percentage gain",
+    "stop_loss": "Specific price or percentage from entry",
+    "time_horizon": "Expected holding period",
+    "exit_conditions": "Technical or news-based exit signals"
+  }}
+}}
+
+Ensure your response is pragmatic, actionable, and considers both upside potential and downside risks.
+These are the available technical trading terms for strategy: Price Greater/Lower than, Trading Volume, Start Date, P/B Ratio, P/E Ratio, ADX, RSI, ROC, Parabolic SAR, MACD, StdDev, SMA 20/50/100, Bollinger Bands, VWAP, Benchmark Index.
+
+Stock data:
+{loadedDocument}""",
 )
 
 def decode_response(content: str):
@@ -91,7 +142,7 @@ def consult(filepath: str, max_retries: int = 5, base_delay: float = 2.0):
     while retry_count <= max_retries:
         try:
             document = open(filepath).read()
-            chain = DEEPSEEK_PROMPT_V3 | model
+            chain = DEEPSEEK_PROMPT_V4 | model
             response = chain.stream({"loadedDocument": document})
             content = []
             for chunk in response:
@@ -131,7 +182,7 @@ def analyze_folder(folder: str):
 
 def main():
     start_time = datetime.now()
-    consult("./analysis_docs/SEDG_2025-02-20.json")
+    consult("./analysis_docs/SEDG_2025-02-27.json")
     end_time = datetime.now()
     print(f"Duration: {end_time - start_time}")
 

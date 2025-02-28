@@ -80,6 +80,7 @@ def retrieve_nasdaq_page(url: str, format: str = "txt") -> str:
     )
     return content
 
+@cached(ttl_seconds=300)
 def fetch_nasdaq_api(url: str) -> dict:
     """
     Fetch data from the Nasdaq API using the provided URL.
@@ -183,7 +184,6 @@ def fetch_stock_news(symbol: str) -> list[str]:
         recent_news.append(json.dumps(news_item))
     return recent_news
 
-
 @cached(ttl_seconds=DAY_TTL)
 def fetch_revenue_earnings(symbol: str) -> str:
     """
@@ -283,7 +283,7 @@ def fetch_institutional_holdings(symbol: str) -> str:
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_historical_quotes(symbol: str) -> str:
+def fetch_historical_quotes(symbol: str, period: int = 5) -> str:
     """
     Fetches historical prices for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/quote/{symbol}/historical?assetclass=stocks
@@ -303,13 +303,13 @@ def fetch_historical_quotes(symbol: str) -> str:
     # Calculate dates for the API request
     end_date = datetime.now()
     start_date = end_date - timedelta(
-        days=30
+        days=period
     )  # Request more data than needed to ensure we have 5 trading days
 
     historical_url = (
         f"https://api.nasdaq.com/api/quote/{symbol}/historical?"
         f"assetclass=stocks&fromdate={start_date.strftime('%Y-%m-%d')}&"
-        f"limit=10&todate={end_date.strftime('%Y-%m-%d')}"
+        f"limit={period}&todate={end_date.strftime('%Y-%m-%d')}"
     )
 
     json_data = fetch_nasdaq_api(historical_url)
@@ -321,7 +321,6 @@ def fetch_historical_quotes(symbol: str) -> str:
     # Extract the trades table which contains all the price information
     trades_data = data.get("tradesTable", {}).get("rows", [])
 
-    # Take only the last 5 trading days and create a dictionary with date as key
     prices_dict = {
         row["date"]: {
             "close": row["close"],
@@ -330,7 +329,7 @@ def fetch_historical_quotes(symbol: str) -> str:
             "high": row["high"],
             "low": row["low"],
         }
-        for row in trades_data[:5]  # Take only the first 5 entries (most recent)
+        for row in trades_data
     }
 
     return json.dumps(prices_dict)

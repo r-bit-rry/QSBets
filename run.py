@@ -6,17 +6,17 @@ from dotenv import load_dotenv
 import pandas as pd
 import chromadb
 
-from chromadb_integration import chromadb_insert
+# from chromadb_integration import chromadb_insert
 from deepseek_lc import consult
 from nasdaq import DAY_TTL, correlate_stocks_with_news
 from social import correlate_stocks_with_sentiment
 from stock import Stock
-from utils import send_text_via_telegram
+from telegram import send_text_via_telegram, format_investment_message
 
 # Constants for small-cap filter (in USD)
 SMALL_CAP_MIN = 100e6  # $100M
 SMALL_CAP_MAX = 9000e6  # $9,000M
-
+STOCKS_TO_ANALYZE = 20
 
 def aggregate_group(group: pd.DataFrame) -> pd.Series:
     aggregated = {
@@ -60,7 +60,7 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
     return pd.Series(aggregated)
 
 
-@chromadb_insert(collection_name="investment_recommendations")
+# @chromadb_insert(collection_name="investment_recommendations")
 def process_stock(nasdaq_data: pd.Series) -> dict:
     # Extract the full meta dict from the row.
     stock = Stock(nasdaq_data=nasdaq_data)
@@ -71,9 +71,12 @@ def process_stock(nasdaq_data: pd.Series) -> dict:
         "symbol": stock.symbol,
         "rating": recommendation.get("rating"),
         "reasoning": recommendation.get("reasoning"),
-        "enter_strategy": recommendation.get("enter_strategy"),
-        "exit_strategy": recommendation.get("exit_strategy"),
+        "enter_strategy": format_strategy(recommendation.get("enter_strategy", {})),
+        "exit_strategy": format_strategy(recommendation.get("exit_strategy", {})),
     }
+
+def format_strategy(strategy: dict) -> str:
+    return "\n".join([f"{key}: {value}" for key, value in strategy.items()])
 
 
 def summarize_chroma():
@@ -147,7 +150,7 @@ def main():
         ascending=False
     )
     print("Total amount of small-cap stocks:", len(aggregated_df))
-    aggregated_df = aggregated_df.head(100)
+    aggregated_df = aggregated_df.head(STOCKS_TO_ANALYZE)
     results = []
     try:
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
@@ -166,14 +169,8 @@ def main():
                     except (ValueError, TypeError):
                         rating = 0
 
-                    if rating >= 70:
-                        message = (
-                            f"<b>Symbol:</b> {result['symbol']}\n"
-                            f"<b>Rating:</b> {result['rating']}\n"
-                            f"<b>Reasoning:</b> {result['reasoning']}\n"
-                            f"<b>Enter Strategy:</b> {result['enter_strategy']}\n"
-                            f"<b>Exit Strategy:</b> {result['exit_strategy']}\n"
-                        )
+                    if rating > 70:
+                        message = format_investment_message(result)
                         send_text_via_telegram(message)
                 except Exception as e:
                     traceback.print_exc()

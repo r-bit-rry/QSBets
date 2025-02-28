@@ -25,6 +25,11 @@ https://docs.astral.sh/uv/#highlights
 
 
 ### 2. Create and Activate Virtual Environment with UV Tool
+ta-lib dependancy was introduced, and does not have a fallback, on mac you can install the underlying C library with:
+```sh
+brew install ta-lib
+```
+
 It is recommended to isolate project dependencies. Run the following command to create the virtual environment with all extras:
 ```sh
 uv sync --all-extras --prerelease=allow
@@ -73,17 +78,19 @@ or run individual scripts as needed (e.g., deepseek.py or stock.py).
 
 The system follows a clear #codebase flow:
 1. Data is fetched from multiple sources (Nasdaq, news feeds, SEC filings, etc.).
-2. Summaries are generated using Azure OpenAI and Ollama services.
-3. JSON reports are produced.
-4. DeepSeek is used to analyze the reports and generate insights.
-5. High-rated stocks trigger immediate Telegram notifications.
-6. Final markdown report is generated.
+2. Summaries are generated using Azure OpenAI and/or Ollama services with a dedicated plutus trained llama model (for financial bias).
+3. JSON reports are produced for each stock.
+4. DeepSeek is used to analyze the reports and generate insights including, rating, enter strategy and exit_strategy.
+5. High-rated stocks trigger immediate Telegram notifications and messages with details.
+6. Final markdown report is generated for all analyzed stocks.
 
 **Future Tasks:**
-- ☐ Integrate additional high-quality news sources and ensure structured aggregation.
-- ☐ Develop a dedicated workflow to analyze SEC 10Q and 10K reports.
+- ☑ Integrate additional high-quality news sources and ensure structured aggregation.
+- WIP: Develop a dedicated workflow to analyze SEC 10Q and 10K reports.
 - ☐ Conduct competitive analysis for specific stocks and related industries.
-- ☐ Implement a separate sentiment analysis flow from Reddit to filter out noise.
+- ☑ Implement a separate sentiment analysis flow from Reddit to filter out noise. (Using API, WIP for own sentiment analysis)
+- ☑ Better technical indicators for stock analysis to support better strategies.
+- ☐ Better structured input to improve performance and token cost.
 
 ## Additional Notes
 - **API Keys:** Remember to generate and securely store API keys before running the application.

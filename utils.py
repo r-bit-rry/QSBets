@@ -5,20 +5,6 @@ from typing import Dict
 import pandas as pd
 import requests
 
-
-def send_text_via_telegram(content: str):
-    """
-    Sends a message via Telegram Bot with Markdown formatting.
-    Escapes special characters to avoid parsing errors.
-    """
-    bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
-    data = {"chat_id": chat_id, "text": content, "parse_mode": "HTML"}
-    response = requests.post(url, data=data)
-    print(response.json())
-
-
 SEARCH_PROMPTS: Dict[str, Dict[str, str]] = {
     "real_time": {
         "q": (

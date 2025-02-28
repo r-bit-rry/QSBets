@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 from pydantic import BaseModel
 from ollama import Client
 
+from cache import cached
 from chromadb_integration import chromadb_insert
+from utils import MONTH_TTL
 load_dotenv(".env")
 
 client = AzureOpenAI(
@@ -70,8 +72,8 @@ def azure_openai_summarize(symbol: str, text: str) -> str:
     summarized_text = response.choices[0].message.content.strip()
     return summarized_text
 
-# @chromadb_insert(collection_name="summaries")
-def ollama_summarize(text: str) -> SummaryResponse:
+@cached(MONTH_TTL)
+def ollama_summarize(text: str, prompt_version=2) -> SummaryResponse:
     """
     Summarize given text using the local Ollama instance with the model llama3.2.
     """
@@ -94,3 +96,14 @@ def ollama_summarize(text: str) -> SummaryResponse:
             attempt += 1
             if attempt > max_attempts:
                 return SummaryResponse()
+
+
+def main():
+    # Example usage
+    symbol = "AAPL"
+    text = "Apple Inc. is a technology company that designs, manufactures, and markets consumer electronics, software, and services."
+    summary = ollama_summarize(text)
+    print(summary)
+
+if __name__ == "__main__":
+    main()

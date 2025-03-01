@@ -126,9 +126,8 @@ def fetch_stock_press_releases(symbol: str) -> list[str]:
     data = json_data.get("data", {})
     if data is None:
         return []
-    rows = data.get("rows", [])
+    rows = data.get("rows") or []
 
-    one_week_ago = datetime.now() - timedelta(days=15)
     recent_releases = []
 
     for row in rows:

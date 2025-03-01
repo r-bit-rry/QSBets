@@ -291,11 +291,9 @@ class Stock:
             result[date] = {}
             for key, value in values.items():
                 if key in ["close", "open", "high", "low"]:
-                    # Convert price strings like "$6.14" to float 6.14
-                    result[date][key] = float(value.replace("$", "").replace(",", ""))
+                    result[date][key] = self._clean_numeric(value)
                 elif key == "volume":
-                    # Convert volume strings like "48,772,580" to integer
-                    result[date][key] = int(value.replace(",", ""))
+                    result[date][key] = self._clean_financial_metric(value)
                 else:
                     result[date][key] = value
 

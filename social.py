@@ -54,7 +54,7 @@ def safe_convert_to_int(value):
 
 
 @cached(ttl_seconds=HOURS2_TTL)
-def fetch_stocks_sentiment(timeframe: str = "24+hours") -> dict:
+def fetch_stocks_sentiment(timeframe: str = "1+week") -> dict:
     """
     Fetches stock wallstreetbets sentiment analysis from
     https://api.beta.swaggystocks.com/wsb/sentiment/rating?timeframe={timeframe}

@@ -130,8 +130,7 @@ def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True) -> dict:
     recommendation = consult(doc)
     result = {
         "symbol": stock.symbol,
-        "rating": recommendation.get("rating"),
-        "reasoning": recommendation.get("reasoning"),
+        **recommendation,
         "enter_strategy": format_strategy(recommendation.get("enter_strategy", {})),
         "exit_strategy": format_strategy(recommendation.get("exit_strategy", {})),
     }

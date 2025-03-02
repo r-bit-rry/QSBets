@@ -147,8 +147,8 @@ class Stock:
         t_start = time.time()
         reddit_wsb_sentiment = fetch_stocks_sentiment().get(self.symbol, {})
         if reddit_wsb_sentiment:
-            report["sentiment"] = reddit_wsb_sentiment
-        timings["sentiment"] = time.time() - t_start
+            report["reddit_wallstreetbets_sentiment"] = reddit_wsb_sentiment
+        timings["reddit_wallstreetbets_sentiment"] = time.time() - t_start
 
         # News with optimized summaries - eliminate redundant fields
         t_start = time.time()

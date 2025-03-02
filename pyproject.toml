@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "deepagent"
-version = "0.2"
+version = "0.3"
 requires-python = ">=3.12, <3.14"
 dependencies = [
     "langchain-ollama",
@@ -35,7 +35,8 @@ dependencies = [
     "chromadb",
     "rich",
     "praw",
-    "ta-lib==0.6.3"
+    "ta-lib==0.6.3",
+    "fredapi"
 ]
 
 [tool.hatch.build.targets.wheel]

@@ -4,6 +4,7 @@ import json
 import os
 import time
 
+from macroeconomic import get_macroeconomic_context
 from social import fetch_stocks_sentiment
 from summarize import azure_openai_summarize, ollama_summarize
 from nasdaq import (
@@ -89,6 +90,12 @@ class Stock:
         technical_indicators = fetch_technical_indicators(self.symbol)
         report["technical_indicators"] = technical_indicators
         timings["technical_indicators"] = time.time() - t_start
+
+        # Macroeconomic indicators
+        t_start = time.time()
+        macroeconomic_context = get_macroeconomic_context()
+        report["macroeconomic_context"] = macroeconomic_context
+        timings["macroeconomic_context"] = time.time() - t_start
 
         # Revenue and Earnings - ensure numeric values
         t_start = time.time()

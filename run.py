@@ -1,5 +1,7 @@
 from datetime import datetime
 import concurrent
+import glob
+import json
 import os
 import traceback
 from dotenv import load_dotenv
@@ -16,13 +18,41 @@ from telegram import send_text_via_telegram, format_investment_message
 # Constants for small-cap filter (in USD)
 SMALL_CAP_MIN = 100e6  # $100M
 SMALL_CAP_MAX = 9000e6  # $9,000M
-STOCKS_TO_ANALYZE = 200
+STOCKS_TO_ANALYZE = 100
 
-def export_to_markdown(results: list):
+def write_to_jsonl(result: dict):
+    """
+    Writes a result to a JSONL file with a timestamp of today.
+    """
+    # Create the "results" folder if it doesn't exist.
+    os.makedirs("results", exist_ok=True)
+    # Create a datetime stamp in format YYYYMMDD
+    timestamp = datetime.now().strftime("%Y%m%d")
+    filename = f"results/investment_recommendations_{timestamp}.jsonl"
+    with open(filename, "a", encoding="utf-8") as f:
+        f.write(json.dumps(result) + "\n")
+
+
+def export_to_markdown():
     """
     Exports investment recommendations to a Markdown file.
     Create a DataFrame from the collected results and sort by rating descending
     """
+
+    # Find the most recent JSONL file in the "results" directory
+    list_of_files = glob.glob("results/*.jsonl")
+    if not list_of_files:
+        print("No JSONL files found in the results directory.")
+        return
+
+    latest_file = max(list_of_files, key=os.path.getctime)
+
+    # Read results from the most recent JSONL file
+    results = []
+    with open(latest_file, "r", encoding="utf-8") as f:
+        for line in f:
+            results.append(json.loads(line))
+
     if results:
         recommendations_df = pd.DataFrame(results)
         recommendations_df["rating"] = pd.to_numeric(
@@ -105,13 +135,16 @@ def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True) -> dict:
         "enter_strategy": format_strategy(recommendation.get("enter_strategy", {})),
         "exit_strategy": format_strategy(recommendation.get("exit_strategy", {})),
     }
+
+    write_to_jsonl(result)
+
     if with_telegram:
         try:
             rating = float(recommendation.get("rating"))
         except (ValueError, TypeError):
             rating = 0
         try:
-            if rating > 70:
+            if rating >= 70:
                 message = format_investment_message(result)
                 send_text_via_telegram(message)
         except Exception as e: 
@@ -201,7 +234,7 @@ def main():
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
             # executor.map will automatically assign tasks to idle workers.
             # Note: We pass generator that yields each row.
-            results = list(
+            list(
                 executor.map(
                     process_stock,
                     (row for _, row in aggregated_df.iterrows())
@@ -213,7 +246,7 @@ def main():
         print(f"An error occurred during processing: {e}")
         traceback.print_exc()
     finally:
-        export_to_markdown(results)
+        export_to_markdown()
 
 
 if __name__ == "__main__":

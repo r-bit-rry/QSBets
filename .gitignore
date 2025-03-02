@@ -143,3 +143,4 @@ cache/*
 reports/
 news_items/*
 chroma_db/*
+results/*

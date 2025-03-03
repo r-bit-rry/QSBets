@@ -81,11 +81,7 @@ Return your analysis in this JSON format:
 {{
   "rating": 0-100,
   "confidence": 1-10,
-  "primary_catalysts": "Top 2-3 factors driving your rating",
-  "risk_factors": "Key risks that could invalidate your thesis",
   "reasoning": "Concise explanation of your rating rationale",
-  "technical_analysis": "Key technical signals from the data",
-  "sentiment_analysis": "Assessment of news sentiment and social signals",
   "enter_strategy": {{
     "entry_price": "Specific price or condition",
     "entry_timing": "Immediate or specific condition",
@@ -99,12 +95,18 @@ Return your analysis in this JSON format:
   }}
 }}
 
-Ensure your response is pragmatic, actionable, and considers both upside potential and downside risks.
+Ensure your response is pragmatic, actionable, concise, technical, using numbers instead of markers, considers both upside potential and downside risks.
 These are the available technical trading terms for strategy: Price Greater/Lower than, Trading Volume, Start Date, P/B Ratio, P/E Ratio, ADX, RSI, ROC, Parabolic SAR, MACD, StdDev, SMA 20/50/100, Bollinger Bands, VWAP, Benchmark Index.
 
 Stock data:
 {loadedDocument}""",
 )
+
+
+# "technical_analysis": "Key technical signals from the data",
+#   "sentiment_analysis": "Assessment of news sentiment and social signals",
+#   "risk_factors": "Key risks that could invalidate your thesis",
+#   "primary_catalysts": "Top 2-3 factors driving your rating",
 
 def decode_response(content: str):
     # Remove and extract the <think></think> section

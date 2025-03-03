@@ -9,17 +9,10 @@ def format_investment_message(result: dict) -> str:
     return (
         f"<b>Symbol:</b> {result['symbol']}\n"
         f"<b>Rating:</b> {result['rating']}\n"
+        f"<b>Confidence:</b> {result['confidence']}\n"
         f"<b>Reasoning:</b> {result['reasoning']}\n\n"
-        "<b>Enter Strategy:</b>\n"
-        f"  - <b>Entry Price:</b> {result['enter_strategy'].get('entry_price', 'N/A')}\n"
-        f"  - <b>Entry Timing:</b> {result['enter_strategy'].get('entry_timing', 'N/A')}\n"
-        f"  - <b>Position Sizing:</b> {result['enter_strategy'].get('position_sizing', 'N/A')}\n"
-        f"  - <b>Technical Indicators:</b> {result['enter_strategy'].get('technical_indicators', 'N/A')}\n\n"
-        "<b>Exit Strategy:</b>\n"
-        f"  - <b>Profit Target:</b> {result['exit_strategy'].get('profit_target', 'N/A')}\n"
-        f"  - <b>Stop Loss:</b> {result['exit_strategy'].get('stop_loss', 'N/A')}\n"
-        f"  - <b>Time Horizon:</b> {result['exit_strategy'].get('time_horizon', 'N/A')}\n"
-        f"  - <b>Exit Conditions:</b> {result['exit_strategy'].get('exit_conditions', 'N/A')}\n"
+        f"<b>Enter Strategy:</b>\n{result['enter_strategy']}\n"
+        f"<b>Exit Strategy:</b>\n{result['exit_strategy']}"
     )
 
 

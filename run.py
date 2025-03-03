@@ -139,11 +139,11 @@ def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True) -> dict:
 
     if with_telegram:
         try:
-            rating = float(recommendation.get("rating"))
+            rating = float(result.get("rating"))
         except (ValueError, TypeError):
             rating = 0
         try:
-            if rating >= 70:
+            if rating > 60:
                 message = format_investment_message(result)
                 send_text_via_telegram(message)
         except Exception as e: 

@@ -392,7 +392,7 @@ def get_macroeconomic_context() -> dict:
         "debt_cycle": {
             "position": macro_data.get('debt_cycle_position', 'N/A'),
             "public_debt_to_gdp": macro_data.get('public_debt_to_gdp', 'N/A'),
-            "household_debt_service": macro_data.get('household_debt_service_ratio', 'N/A')
+            "household_debt_service_ratio": macro_data.get('household_debt_service_ratio', 'N/A')
         },
         "liquidity": {
             "conditions": macro_data.get('liquidity_conditions', 'N/A'),

@@ -5,14 +5,20 @@ import requests
 
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
+
 def format_investment_message(result: dict) -> str:
+    # Escape < and > characters that aren't part of HTML tags
+    reasoning = result["reasoning"].replace("<", "&lt;").replace(">", "&gt;")
+    enter_strategy = result["enter_strategy"].replace("<", "&lt;").replace(">", "&gt;")
+    exit_strategy = result["exit_strategy"].replace("<", "&lt;").replace(">", "&gt;")
+
     return (
         f"<b>Symbol:</b> {result['symbol']}\n"
         f"<b>Rating:</b> {result['rating']}\n"
         f"<b>Confidence:</b> {result['confidence']}\n"
-        f"<b>Reasoning:</b> {result['reasoning']}\n\n"
-        f"<b>Enter Strategy:</b>\n{result['enter_strategy']}\n"
-        f"<b>Exit Strategy:</b>\n{result['exit_strategy']}"
+        f"<b>Reasoning:</b> {reasoning}\n\n"
+        f"<b>Enter Strategy:</b>\n{enter_strategy}\n\n"
+        f"<b>Exit Strategy:</b>\n{exit_strategy}"
     )
 
 
@@ -81,5 +87,18 @@ def listen_to_telegram():
         time.sleep(1)
 
 
+def test_send_text_via_telegram():
+    data = {
+        "symbol": "TEST",
+        "rating": 68,
+        "confidence": 8,
+        "reasoning": "ChromaDex shows strong bullish momentum post-earnings with a 60% surge on 10.9M volume (10x average), breaking above all SMAs ($5.60-$5.64 cluster). Positive fundamentals: FY revenue +19% to $99.6M, first annual profit ($8.6M), and improving margins. Technicals show neutral RSI (48.98) post-surge, MACD nearing bullish crossover, but ADX (9.9) indicates weak trend strength. Risks include potential profit-taking after gap-up and mixed insider selling (net -37k shares last 3M).",
+        "enter_strategy": "entry_price: Pullback to $8.50 (near VWAP of $8.97)\nentry_timing: Immediate on confirmed support above $8.50\ntechnical_indicators: Price > SMA 20/50/100, MACD crossover above signal line, volume > 1M shares",
+        "exit_strategy": "profit_target: $10.50 (17% gain from $8.97)\nstop_loss: $7.75 (13.6% below entry)\ntime_horizon: 2-3 weeks (pre-earnings quiet period)\nexit_conditions: Close below SMA 20 ($8.50), RSI >70 (overbought), or volume <500k shares (loss of momentum)",
+    }
+    message = format_investment_message(data)
+    send_text_via_telegram(message)
+
 if __name__ == "__main__":
+    # test_send_text_via_telegram()
     listen_to_telegram()

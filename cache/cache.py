@@ -5,8 +5,13 @@ import hashlib
 from typing import Any, Callable, Optional, Union
 from diskcache import Cache
 
+HOURS2_TTL = 7200  # 2 hours
+DAY_TTL = 86400  # 1 day
+WEEK_TTL = 604800  # 7 days
+MONTH_TTL = 2592000  # 30 days
+
 # Create cache directory if it doesn't exist
-CACHE_DIR = "./cache"
+CACHE_DIR = "./.cache"
 if not os.path.exists(CACHE_DIR):
     os.makedirs(CACHE_DIR)
 

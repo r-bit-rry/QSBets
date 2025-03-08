@@ -3,9 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "deepagent"
-version = "0.3"
+name = "QSBets"
+version = "0.5.0"
 requires-python = ">=3.12, <3.14"
+description = "Event-driven stock analysis and investment recommendation system"
 dependencies = [
     "langchain-ollama",
     "langchain-azure-ai",
@@ -39,11 +40,16 @@ dependencies = [
     "fredapi"
 ]
 
+[project.scripts]
+qsbets = "main:main"
+
 [tool.hatch.build.targets.wheel]
-packages = ["deepagent"]
+packages = ["QSBets"]
 
 [tool.poe.tasks]
 test.sequence = [
-    # "playwright install",
     "pytest -n auto",
 ]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

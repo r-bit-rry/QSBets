@@ -102,11 +102,42 @@ Stock data:
 {loadedDocument}""",
 )
 
+# New optimized prompt that uses pre-analyzed data
+DEEPSEEK_PROMPT_V5 = PromptTemplate(
+    input_variables=["loadedDocument"],
+    template="""You are an expert stock analyst. Evaluate the provided stock data which includes pre-analyzed technical indicators, sentiment metrics, and preliminary ratings.
 
-# "technical_analysis": "Key technical signals from the data",
-#   "sentiment_analysis": "Assessment of news sentiment and social signals",
-#   "risk_factors": "Key risks that could invalidate your thesis",
-#   "primary_catalysts": "Top 2-3 factors driving your rating",
+Review and refine the preliminary rating (0-100) where:
+- 0-30: Strong Sell (High risk, negative outlook)
+- 31-45: Sell (Underperform, concerning signals)
+- 46-55: Hold/Neutral (Mixed signals, unclear direction)
+- 56-70: Buy (Favorable outlook, good potential)
+- 71-100: Strong Buy (Excellent setup, high conviction)
+
+Return your analysis in this JSON format:
+{{
+  "symbol": "The ticker symbol",
+  "rating": 0-100,
+  "confidence": 1-10,
+  "reasoning": "Concise explanation of your rating with key data points",
+  "enter_strategy": {{
+    "entry_price": "Specific price or condition",
+    "entry_timing": "Immediate or specific condition",
+    "technical_indicators": "Key technical indicators supporting entry"
+  }},
+  "exit_strategy": {{
+    "profit_target": "Price target or percentage gain",
+    "stop_loss": "Specific price or percentage from entry",
+    "time_horizon": "Expected holding period",
+    "exit_conditions": "Technical or news-based exit signals"
+  }}
+}}
+
+Focus your reasoning on validating or adjusting the preliminary rating based on the most critical data points. Use only numbers instead of verbal markers (like "slightly" or "strong").
+
+Stock data:
+{loadedDocument}"""
+)
 
 def decode_response(content: str):
     # Remove and extract the <think></think> section
@@ -144,7 +175,7 @@ def consult(filepath: str, max_retries: int = 5, base_delay: float = 2.0):
     while retry_count <= max_retries:
         try:
             document = open(filepath).read()
-            chain = DEEPSEEK_PROMPT_V4 | model
+            chain = DEEPSEEK_PROMPT_V5 | model
             response = chain.stream({"loadedDocument": document})
             content = []
             for chunk in response:
@@ -184,7 +215,8 @@ def analyze_folder(folder: str):
 
 def main():
     start_time = datetime.now()
-    consult("./analysis_docs/SEDG_2025-02-27.json")
+    result = consult("./analysis_docs/SEDG_2025-02-27.json")
+    print(f"Analysis result: {json.dumps(result, indent=2)}")
     end_time = datetime.now()
     print(f"Duration: {end_time - start_time}")
 

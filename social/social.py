@@ -1,16 +1,14 @@
-from datetime import datetime, timedelta
-import os
-from dotenv import load_dotenv
+from datetime import datetime
 import pandas as pd
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from trafilatura import extract
-import time
 import json
-from cache import cached
-from utils import HOURS2_TTL
+from cache.cache import cached, HOURS2_TTL
+import os
+import random
+import logging
+from typing import Dict, Any, List, Optional
 
+logger = logging.getLogger(__name__)
 
 HEADERS = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -144,17 +142,16 @@ def fetch_stocks_sentiment(timeframe: str = "1+week") -> dict:
     return mapping
 
 
-def correlate_stocks_with_sentiment(df: pd.DataFrame) -> pd.DataFrame:
+def get_sentiment_df() -> pd.DataFrame:
     """
-    Correlate stocks with their sentiment rating.
-
-    Args:
-        df: DataFrame with a 'symbol' column to merge with sentiment data
+    Fetch and return sentiment data as a DataFrame.
 
     Returns:
-        DataFrame with sentiment data added
+        DataFrame with sentiment data
     """
     sentiment_data = fetch_stocks_sentiment()
+    if not sentiment_data:
+        return pd.DataFrame()
 
     # Extract sentiment scores with proper error handling
     ratings = [
@@ -172,4 +169,18 @@ def correlate_stocks_with_sentiment(df: pd.DataFrame) -> pd.DataFrame:
         if ratings
         else pd.DataFrame(columns=["symbol", "sentiment_rating"])
     )
+
+    return sentiment_df
+
+def correlate_stocks_with_sentiment(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Correlate stocks with their sentiment rating.
+
+    Args:
+        df: DataFrame with a 'symbol' column to merge with sentiment data
+
+    Returns:
+        DataFrame with sentiment data added
+    """
+    sentiment_df = get_sentiment_df()
     return pd.merge(df, sentiment_df, on="symbol", how="outer")

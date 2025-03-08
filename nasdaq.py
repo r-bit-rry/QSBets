@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import os
 from dotenv import load_dotenv
 import pandas as pd
 import requests
@@ -8,8 +7,7 @@ from selenium.webdriver.chrome.options import Options
 from trafilatura import extract
 import time
 import json
-from cache import cached
-from utils import DAY_TTL, MONTH_TTL
+from cache.cache import cached, DAY_TTL, MONTH_TTL
 
 NASDAQ_HEADERS = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -282,7 +280,7 @@ def fetch_institutional_holdings(symbol: str) -> str:
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_historical_quotes(symbol: str, period: int = 5) -> str:
+def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
     """
     Fetches historical prices for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/quote/{symbol}/historical?assetclass=stocks
@@ -315,10 +313,10 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> str:
 
     data = json_data.get("data", {})
     if data is None:
-        return json.dumps({})
+        return {}
 
     # Extract the trades table which contains all the price information
-    trades_data = data.get("tradesTable", {}).get("rows", [])
+    trades_data = data.get("tradesTable", {}).get("rows") or []
 
     prices_dict = {
         row["date"]: {
@@ -331,7 +329,7 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> str:
         for row in trades_data
     }
 
-    return json.dumps(prices_dict)
+    return prices_dict
 
 @cached(ttl_seconds=DAY_TTL)
 def fetch_insider_trading(symbol: str) -> str:

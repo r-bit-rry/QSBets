@@ -11,8 +11,8 @@ import chromadb
 # from chromadb_integration import chromadb_insert
 from deepseek_lc import consult
 from nasdaq import DAY_TTL, correlate_stocks_with_news
-from social import correlate_stocks_with_sentiment
-from stock import Stock
+from social.social import correlate_stocks_with_sentiment
+from analysis.stock import Stock
 from telegram import send_text_via_telegram, format_investment_message
 
 # Constants for small-cap filter (in USD)
@@ -123,17 +123,51 @@ def aggregate_group(group: pd.DataFrame) -> pd.Series:
 
 
 # @chromadb_insert(collection_name="investment_recommendations")
-def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True) -> dict:
+def process_stock(nasdaq_data: pd.Series, with_telegram: bool=True, skip_llm: bool=False) -> dict:
+    """
+    Process a stock for analysis, optionally skipping LLM analysis if the preliminary analysis is sufficient.
+    
+    Args:
+        nasdaq_data: Series containing stock data
+        with_telegram: Whether to send Telegram messages
+        skip_llm: Whether to skip LLM analysis and use only the preliminary rating
+        
+    Returns:
+        Dictionary with analysis results
+    """
     # Extract the full meta dict from the row.
-    stock = Stock(nasdaq_data=nasdaq_data)
-    doc = stock.make_json()
-    recommendation = consult(doc)
-    result = {
-        "symbol": stock.symbol,
-        **recommendation,
-        "enter_strategy": format_strategy(recommendation.get("enter_strategy", {})),
-        "exit_strategy": format_strategy(recommendation.get("exit_strategy", {})),
-    }
+    stock = Stock(nasdaq_data=nasdaq_data.to_dict())
+    doc_path = stock.make_json()
+    
+    # Load the generated document to extract preliminary analysis
+    with open(doc_path, 'r') as file:
+        stock_data = json.load(file)
+    
+    if skip_llm:
+        # Use only the preliminary analysis
+        preliminary = stock_data.get('preliminary_rating', {})
+        entry_strategy = stock_data.get('preliminary_entry_strategy', {})
+        exit_strategy = stock_data.get('preliminary_exit_strategy', {})
+        
+        result = {
+            "symbol": stock.symbol,
+            "rating": preliminary.get('rating', 50),
+            "confidence": preliminary.get('confidence', 5),
+            "reasoning": "Preliminary analysis: " + ", ".join(preliminary.get('explanations', [])),
+            "enter_strategy": entry_strategy,
+            "exit_strategy": exit_strategy,
+        }
+    else:
+        # Use the LLM for analysis
+        recommendation = consult(doc_path)
+        result = {
+            "symbol": stock.symbol,
+            **recommendation,
+        }
+
+    # Format strategies for output
+    result["enter_strategy"] = format_strategy(result.get("enter_strategy", {}))
+    result["exit_strategy"] = format_strategy(result.get("exit_strategy", {}))
 
     write_to_jsonl(result)
 

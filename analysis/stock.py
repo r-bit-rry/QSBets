@@ -4,9 +4,9 @@ import json
 import os
 import time
 
-from macroeconomic import get_macroeconomic_context
-from social import fetch_stocks_sentiment
-from summarize import azure_openai_summarize, ollama_summarize
+from analysis.macroeconomic import get_macroeconomic_context
+from social.social import fetch_stocks_sentiment
+from summarize.ollama_summarize import ollama_summarize
 from nasdaq import (
     fetch_historical_quotes,
     fetch_revenue_earnings,
@@ -19,15 +19,26 @@ from nasdaq import (
     fetch_stock_news,
     fetch_stock_press_releases,
 )
-from ta import fetch_technical_indicators
+from analysis.ta import fetch_technical_indicators
+from analysis.ta_interpretation import (
+    interpret_rsi,
+    interpret_macd,
+    interpret_moving_averages,
+    interpret_bollinger_bands,
+    interpret_adx,
+    interpret_insider_activity,
+    interpret_institutional_holdings,
+    generate_preliminary_rating,
+    generate_entry_exit_strategy
+)
 
 class Stock:
     def __init__(self, nasdaq_data):
-        self.meta = nasdaq_data.to_dict()
+        self.meta = nasdaq_data
         self.symbol = self.meta["symbol"]
 
     @staticmethod
-    def process_meta(nasdaq_data, symbol):
+    def process_meta(nasdaq_data, symbol) -> dict:
         """
         Extract metadata for a specific symbol from nasdaq_data DataFrame
 
@@ -91,6 +102,31 @@ class Stock:
         report["technical_indicators"] = technical_indicators
         timings["technical_indicators"] = time.time() - t_start
 
+        # NEW: Add technical indicators interpretation
+        t_start = time.time()
+        # Get current price from most recent quote
+        historical_data = fetch_historical_quotes(self.symbol, 5)
+        report["historical_quotes"] = self._optimize_historical_quotes(historical_data)
+        
+        # Pre-analyze the technical indicators and add interpretations
+        technical_analysis = {
+            "rsi_analysis": interpret_rsi(technical_indicators.get('rsi')),
+            "macd_analysis": interpret_macd(technical_indicators.get('macd', {})),
+            "moving_averages_analysis": interpret_moving_averages(
+                float(list(report["historical_quotes"].values())[0]["close"]),
+                technical_indicators.get('sma_20'),
+                technical_indicators.get('sma_50'),
+                technical_indicators.get('sma_100')
+            ),
+            "bollinger_analysis": interpret_bollinger_bands(
+                float(list(report["historical_quotes"].values())[0]["close"]),
+                technical_indicators.get('bollinger_bands', {})
+            ),
+            "adx_analysis": interpret_adx(technical_indicators.get('adx'))
+        }
+        report["technical_analysis"] = technical_analysis
+        timings["technical_analysis"] = time.time() - t_start
+
         # Macroeconomic indicators
         t_start = time.time()
         macroeconomic_context = get_macroeconomic_context()
@@ -123,18 +159,31 @@ class Stock:
         report["institutional_holdings"] = self._optimize_institutional_holdings(
             holdings_data
         )
+        
+        # NEW: Add institutional holdings interpretation
+        report["institutional_analysis"] = interpret_institutional_holdings(report["institutional_holdings"])
         timings["institutional_holdings"] = time.time() - t_start
 
         # Optimize insider trading - clean numeric data and standardize dates
         t_start = time.time()
         insider_data = json.loads(fetch_insider_trading(self.symbol))
         report["insider_trading"] = self._optimize_insider_trading(insider_data)
+        
+        # NEW: Add insider trading interpretation
+        report["insider_analysis"] = interpret_insider_activity(report["insider_trading"])
         timings["insider_trading"] = time.time() - t_start
 
-        # Historical quotes - convert to numeric and standardize format
+        # NEW: Generate preliminary rating and entry/exit strategy
         t_start = time.time()
-        historical_data = json.loads(fetch_historical_quotes(self.symbol, 5))
-        report["historical_quotes"] = self._optimize_historical_quotes(historical_data)
+        preliminary_rating = generate_preliminary_rating(report)
+        entry_strategy, exit_strategy = generate_entry_exit_strategy(report)
+        
+        report["preliminary_rating"] = preliminary_rating
+        report["preliminary_entry_strategy"] = entry_strategy
+        report["preliminary_exit_strategy"] = exit_strategy
+        timings["preliminary_analysis"] = time.time() - t_start
+
+        # Historical quotes - already processed above
         timings["historical_quotes"] = time.time() - t_start
 
         # SEC filings - keep only recent and relevant filings

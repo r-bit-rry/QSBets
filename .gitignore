@@ -137,10 +137,10 @@ cython_debug/
 searxng/*
 uv.lock
 analysis_docs/*
-nasdaq_cache.json
-cache/*
+.cache/*
 .DS_Store
 reports/
 news_items/*
 chroma_db/*
 results/*
+.events/*

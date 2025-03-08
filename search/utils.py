@@ -1,9 +1,6 @@
 import datetime
-import html
-import os
 from typing import Dict
 import pandas as pd
-import requests
 
 SEARCH_PROMPTS: Dict[str, Dict[str, str]] = {
     "real_time": {
@@ -96,8 +93,3 @@ def fill_template(params: object, stock: pd.Series) -> str:
     params["q"] = template_filled
     params["freshness"] = freshness_filled
     return params
-
-HOURS2_TTL = 7200  # 2 hours
-DAY_TTL = 86400  # 1 day
-WEEK_TTL = 604800  # 7 days
-MONTH_TTL = 2592000  # 30 days

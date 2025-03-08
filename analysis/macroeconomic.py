@@ -7,8 +7,7 @@ from datetime import datetime, timedelta
 import requests
 from trafilatura import extract
 import json
-from cache import cached
-from utils import DAY_TTL
+from cache.cache import cached, DAY_TTL
 
 # You would need to get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
 api_key = os.getenv("FRED_API_KEY")

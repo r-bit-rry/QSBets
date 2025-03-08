@@ -90,6 +90,8 @@ The system follows a clear #codebase flow:
 - ☐ Conduct competitive analysis for specific stocks and related industries.
 - ☑ Implement a separate sentiment analysis flow from Reddit to filter out noise. (Using API, WIP for own sentiment analysis)
 - ☑ Better technical indicators for stock analysis to support better strategies.
+- ☑ Calculate interpertation for techincal indicators, conserving tokens.
+- ☑ Event driven analysis, intial stocks list + telegram listening, main local analysis with technical indicators, and final deepseek analysis.
 - ☐ Better structured input to improve performance and token cost.
 
 ## Additional Notes

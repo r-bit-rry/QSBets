@@ -3,9 +3,8 @@
 import json
 import pandas as pd
 import talib
-from cache import cached
+from cache.cache import cached, DAY_TTL
 from nasdaq import fetch_historical_quotes
-from utils import DAY_TTL
 
 
 def prepare_dataframe(historical_json, date_format="%m/%d/%Y"):
@@ -133,8 +132,8 @@ def calculate_cci(df, period=20):
 @cached(ttl_seconds=DAY_TTL)
 def fetch_technical_indicators(symbol, period=150):
     # Fetch and parse the historical quotes JSON from NASDAQ.
-    historical_json = json.loads(fetch_historical_quotes(symbol, period))
-    df = prepare_dataframe(historical_json, date_format="%m/%d/%Y")
+    historical_data = fetch_historical_quotes(symbol, period)
+    df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
 
     indicators = {
         "rsi": calculate_rsi(df, period=14),

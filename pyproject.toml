@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "QSBets"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.12, <3.14"
 description = "Event-driven stock analysis and investment recommendation system"
 dependencies = [
@@ -37,7 +37,9 @@ dependencies = [
     "rich",
     "praw",
     "ta-lib==0.6.3",
-    "fredapi"
+    "fredapi",
+    "mlx",
+    "mlx-lm",
 ]
 
 [project.scripts]

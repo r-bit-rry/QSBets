@@ -144,3 +144,4 @@ news_items/*
 chroma_db/*
 results/*
 .events/*
+ml_serving/mlx_model

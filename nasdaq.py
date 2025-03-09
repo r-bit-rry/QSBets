@@ -265,8 +265,14 @@ def fetch_institutional_holdings(symbol: str) -> str:
     ownership_summary = data.get("ownershipSummary", {})
     active_positions = data.get("activePositions", {}).get("rows", [])
     new_sold_out_positions = data.get("newSoldOutPositions", {}).get("rows", [])
-    holdings_transactions = data.get("holdingsTransactions", {}).get("table", {}).get("rows", [])
-    cleaned_holdings_transactions = [{k: v for k, v in item.items() if k != 'url'} for item in holdings_transactions]
+
+    holdings_transactions_data = data.get("holdingsTransactions") or {}
+    table_data = holdings_transactions_data.get("table") or {}
+    holdings_transactions = table_data.get("rows", [])
+
+    cleaned_holdings_transactions = [
+        {k: v for k, v in item.items() if k != "url"} for item in holdings_transactions
+    ]
 
     # Format the extracted information as JSON
     institutional_holdings_info = {

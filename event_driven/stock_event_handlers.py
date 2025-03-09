@@ -10,16 +10,22 @@ from datetime import datetime
 import traceback
 from typing import Any, Dict, List
 import logging
-import asyncio
 from queue import Queue
 import pandas as pd
 
 from event_driven.event_bus import EventBus, EventType
-from deepseek_lc import consult
+# from ml_serving.deepseek_lc import consult
 from analysis.stock import Stock
+from ml_serving.mlx_fin import MODEL_PATH, extract_json_from_response
 from social.social import get_sentiment_df
 from nasdaq import fetch_nasdaq_data
 from telegram import send_text_via_telegram, format_investment_message
+from ml_serving.mlx_model_server import get_model_server
+from summarize.mlx_summarize import (
+    MLX_PROMPT_V1,
+    STOCK_SYSTEM_PROMPT,
+)
+from langchain.schema.messages import SystemMessage, HumanMessage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -68,7 +74,7 @@ class StockEventSystem:
         stock_request_queue.put({
             "symbol": symbol,
             "request_id": event_data.get("request_id", str(datetime.now().timestamp())),
-            "requested_by": event_data.get("requested_by", None) or os.getenv("TELEGRAM_CHAT_ID")
+            "requested_by": event_data.get("requested_by") or os.getenv("TELEGRAM_CHAT_ID")
         })
 
     def handle_telegram_command(self, event_data: Dict[str, Any]) -> None:
@@ -134,7 +140,10 @@ class StockEventSystem:
         try:
             # Only run every hour (use a timestamp check)
             current_hour = datetime.now().hour
-            if hasattr(self, '_last_sentiment_hour') and self._last_sentiment_hour == current_hour:
+            if (
+                hasattr(self, "_last_sentiment_hour")
+                and self._last_sentiment_hour == current_hour
+            ):
                 return
 
             self._last_sentiment_hour = current_hour
@@ -145,19 +154,23 @@ class StockEventSystem:
             # Get sentiment data and correlate
             sentiment_df = get_sentiment_df()
             df = pd.merge(nasdaq_data, sentiment_df, on="symbol", how="inner")
-            # Sort by sentiment rating (descending) and take top 10
-            if 'sentiment_rating' in df.columns:
-                top_stocks = df.sort_values('sentiment_rating', ascending=False).head(_max_sentiment_stocks)
+            # Sort by sentiment rating (descending) and take top stocks
+            if "sentiment_rating" in df.columns:
+                top_stocks = df.sort_values("sentiment_rating", ascending=False).head(
+                    self._max_sentiment_stocks
+                )
 
                 # Queue these stocks for analysis
                 for _, row in top_stocks.iterrows():
-                    symbol = row['symbol']
+                    symbol = row["symbol"]
                     if pd.notna(symbol) and symbol:
-                        stock_request_queue.put({
-                            "symbol": symbol,
-                            "request_id": f"sentiment_{datetime.now().timestamp()}",
-                            "requested_by": None  # Automatic request, not from a user
-                        })
+                        stock_request_queue.put(
+                            {
+                                "symbol": symbol,
+                                "request_id": f"sentiment_{datetime.now().timestamp()}",
+                                "requested_by": os.getenv("TELEGRAM_CHAT_ID"),
+                            }
+                        )
                         logger.info(f"Queued high-sentiment stock for analysis: {symbol}")
 
         except Exception as e:
@@ -203,12 +216,51 @@ class StockEventSystem:
                 time.sleep(5)  # Continue after a short delay
 
     def start_consult_loop(self):
-        """Start the consult loop for evaluating analysis data"""
-        logger.info("Starting consult loop for DeepSeek evaluation")
+        """Start the consult loop for evaluating analysis data using the MLX model server"""
+        logger.info("Starting consult loop for parallelized MLX evaluation")
 
         # Create a results file for today
         today_str = datetime.now().strftime("%Y-%m-%d")
         results_file = os.path.join(self.results_dir, f"results_{today_str}.jsonl")
+
+        # Get the model server instance
+        model_server = get_model_server()
+
+        # Callback function for when consult requests complete
+        def on_consult_complete(request_id, result):
+            # Check for errors
+            if "error" in result:
+                logger.error(f"Consult error for request {request_id}: {result['error']}")
+                return
+
+            # Extract the metadata from the result
+            metadata = result.get("metadata", {})
+            symbol = metadata.get("symbol")
+            requested_by = metadata.get("requested_by")
+
+            try:
+                json_str = extract_json_from_response(result["content"])
+                parsed_result = json.loads(json_str)
+
+                # Add metadata from the original request
+                if symbol and "symbol" not in parsed_result:
+                    parsed_result["symbol"] = symbol
+
+                parsed_result["request_id"] = metadata.get("request_id")
+                parsed_result["requested_by"] = requested_by
+
+                # Write to the results file
+                with open(results_file, "a") as f:
+                    f.write(json.dumps(parsed_result) + "\n")
+
+                # Put in the consult_result_queue for the main loop
+                consult_result_queue.put(parsed_result)
+
+                logger.info(
+                    f"Consultation for {symbol} completed with rating {parsed_result.get('rating', 'N/A')}"
+                )
+            except Exception as e:
+                logger.error(f"Error processing consult result: {str(e)}")
 
         while True:
             try:
@@ -218,30 +270,41 @@ class StockEventSystem:
                     symbol = analysis.get("symbol")
                     file_path = analysis.get("file_path")
 
-                    logger.info(f"Processing consultation for {symbol}")
+                    logger.info(f"Submitting consultation for {symbol} to MLX Model Server")
 
-                    # Use DeepSeek to evaluate the analysis
-                    result = consult(file_path)
+                    try:
+                        # Read the file content
+                        with open(file_path, "r") as file:
+                            document = file.read()
 
-                    if result:
-                        # Add symbol if not present
-                        if "symbol" not in result:
-                            result["symbol"] = symbol
+                        formatted_prompt = MLX_PROMPT_V1.format(loadedDocument=document)
+                        messages = [
+                            SystemMessage(content=STOCK_SYSTEM_PROMPT),
+                            HumanMessage(content=formatted_prompt),
+                        ]
 
-                        # Add metadata from the original request
-                        result["request_id"] = analysis.get("request_id")
-                        result["requested_by"] = analysis.get("requested_by")
+                        # Submit to the model server
+                        request_id = f"consult_{symbol}_{time.time()}"
+                        model_server.submit_request(
+                            request_id=request_id,
+                            messages=messages,
+                            callback=on_consult_complete,
+                            metadata={
+                                "symbol": symbol,
+                                "file_path": file_path,
+                                "request_id": analysis.get("request_id"),
+                                "requested_by": analysis.get("requested_by"),
+                            },
+                        )
 
-                        # Write to the results file
-                        with open(results_file, 'a') as f:
-                            f.write(json.dumps(result) + '\n')
+                        logger.info(
+                            f"Consultation for {symbol} submitted to MLX Model Server"
+                        )
 
-                        # Put in the consult_result_queue for the main loop
-                        consult_result_queue.put(result)
-
-                        logger.info(f"Consultation for {symbol} completed with rating {result.get('rating', 'N/A')}")
-                    else:
-                        logger.error(f"Consultation for {symbol} failed or returned empty result")
+                    except Exception as e:
+                        logger.error(
+                            f"Error submitting consult request for {symbol}: {str(e)}"
+                        )
                 else:
                     # Sleep if no analyses are waiting
                     time.sleep(1)
@@ -250,22 +313,24 @@ class StockEventSystem:
                 logger.error(f"Error in consult loop: {str(e)}")
                 time.sleep(5)  # Continue after a short delay
 
-# Initialize the system when the module is imported
 stock_system = StockEventSystem()
+
 
 def initialize():
     """Initialize the stock event handlers system with all three loops"""
-    # Start the event bus
+    get_model_server(MODEL_PATH, num_workers=4)
+
     bus = EventBus()
     bus.start()
     bus.start_background_loop()
-    
+
     # Start the three loops in separate threads
     threading.Thread(target=stock_system.start_main_loop, daemon=True).start()
     threading.Thread(target=stock_system.start_analysis_loop, daemon=True).start()
     threading.Thread(target=stock_system.start_consult_loop, daemon=True).start()
-    
+
     logger.info("Stock event system initialized with all three loops running")
+
 
 if __name__ == "__main__":
     initialize()

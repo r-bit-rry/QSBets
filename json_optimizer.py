@@ -91,6 +91,6 @@ def _optimize_meta(meta):
 # Update the consult function to use optimized JSON
 def optimized_consult(filepath: str):
     """Wrapper for consult that first optimizes the JSON"""
-    from deepseek_lc import consult
+    from ml_serving.deepseek_lc import consult
     optimized_path = optimize_json_for_llm(filepath)
     return consult(optimized_path)

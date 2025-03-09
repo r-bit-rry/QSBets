@@ -7,19 +7,86 @@ DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
 def format_investment_message(result: dict) -> str:
-    # Escape < and > characters that aren't part of HTML tags
-    reasoning = result["reasoning"].replace("<", "&lt;").replace(">", "&gt;")
-    enter_strategy = result["enter_strategy"].replace("<", "&lt;").replace(">", "&gt;")
-    exit_strategy = result["exit_strategy"].replace("<", "&lt;").replace(">", "&gt;")
+    """
+    Format investment analysis result for Telegram with HTML formatting.
+    Handles both string-based fields and complex nested structures.
+    """
+    if not result:
+        return "No analysis results available."
 
-    return (
-        f"<b>Symbol:</b> {result['symbol']}\n"
-        f"<b>Rating:</b> {result['rating']}\n"
-        f"<b>Confidence:</b> {result['confidence']}\n"
-        f"<b>Reasoning:</b> {reasoning}\n\n"
-        f"<b>Enter Strategy:</b>\n{enter_strategy}\n\n"
-        f"<b>Exit Strategy:</b>\n{exit_strategy}"
-    )
+    # Helper function to escape HTML characters in strings
+    def escape_html(text):
+        if isinstance(text, str):
+            return text.replace("<", "&lt;").replace(">", "&gt;")
+        return text
+
+    # Helper function to format lists
+    def format_list(items):
+        if not items:
+            return "None"
+        return "\n".join(f"• {escape_html(item)}" for item in items)
+
+    # Helper function to format nested dictionaries
+    def format_dict(data):
+        if isinstance(data, str):
+            return escape_html(data)
+
+        if not isinstance(data, dict):
+            return str(data)
+
+        formatted = []
+        for key, value in data.items():
+            key_display = key.replace("_", " ").title()
+
+            if isinstance(value, list):
+                formatted.append(f"<b>{key_display}:</b>\n{format_list(value)}")
+            else:
+                formatted.append(f"<b>{key_display}:</b> {escape_html(value)}")
+
+        return "\n".join(formatted)
+
+    # Start building message
+    message_parts = [
+        f"<b>Symbol:</b> {result.get('symbol', 'N/A')}",
+        f"<b>Rating:</b> {result.get('rating', 'N/A')}",
+        f"<b>Confidence:</b> {result.get('confidence', 'N/A')}",
+    ]
+
+    # Add reasoning
+    if "reasoning" in result:
+        message_parts.append(f"<b>Reasoning:</b> {escape_html(result['reasoning'])}")
+
+    # Add bullish factors if available
+    if "bullish_factors" in result:
+        message_parts.append(
+            f"<b>Bullish Factors:</b>\n{format_list(result['bullish_factors'])}"
+        )
+
+    # Add bearish factors if available
+    if "bearish_factors" in result:
+        message_parts.append(
+            f"<b>Bearish Factors:</b>\n{format_list(result['bearish_factors'])}"
+        )
+
+    # Add macro impact if available
+    if "macro_impact" in result:
+        message_parts.append(
+            f"<b>Macro Impact:</b> {escape_html(result.get('macro_impact', ''))}"
+        )
+
+    # Add enter strategy
+    if "enter_strategy" in result:
+        message_parts.append(
+            f"<b>Enter Strategy:</b>\n{format_dict(result['enter_strategy'])}"
+        )
+
+    # Add exit strategy
+    if "exit_strategy" in result:
+        message_parts.append(
+            f"<b>Exit Strategy:</b>\n{format_dict(result['exit_strategy'])}"
+        )
+
+    return "\n\n".join(message_parts)
 
 
 def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):

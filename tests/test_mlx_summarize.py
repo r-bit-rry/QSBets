@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the function to test
-from summarize.ollama_summarize import ollama_summarize
+from summarize.mlx_summarize import mlx_summarize
 
 def main():
     text = """
@@ -34,16 +34,16 @@ Meanwhile, SentinelOne is seeing huge success upselling its Purple AI solution, 
 Importantly, though, the company has a big catalyst later this year when enterprise PC vendor Lenovo will begin shipping all its PCs with SentinelOne's Singularity Platform on them. The two companies are also developing a new managed detection and response (MDR) service using AI and endpoint detection and response (EDR) capabilities based on the Singularity Platform. Lenovo is the world's largest PC vendor, selling nearly 62 million units in 2024, so this is a big opportunity for SentinelOne.
 At the same time, the stock is attractively priced, trading at a P/E ratio of under 5 times fiscal 2026 analyst estimates.
 """
-    print("Running ollama_summarize test...")
+    print("Running mlx_summarize test...")
     try:
         # Start the timer
         start_time = time.time()
         
-        summary = ollama_summarize(text)
+        summary = mlx_summarize(text)
         
         # Calculate and display elapsed time
         elapsed_time = time.time() - start_time
-        print(f"\nOllama summarization completed in {elapsed_time:.2f} seconds")
+        print(f"\nMLX summarization completed in {elapsed_time:.2f} seconds")
         
         print("\nSummary results:")
         print(f"Title: {summary.get('title', 'N/A')}")
@@ -61,7 +61,7 @@ At the same time, the stock is attractively priced, trading at a P/E ratio of un
         print("\nTest completed successfully!")
         return summary
     except Exception as e:
-        print(f"\nError in ollama_summarize: {e}")
+        print(f"\nError in mlx_summarize: {e}")
         return None
 
 

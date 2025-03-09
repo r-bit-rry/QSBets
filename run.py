@@ -9,7 +9,7 @@ import pandas as pd
 import chromadb
 
 # from chromadb_integration import chromadb_insert
-from deepseek_lc import consult
+from ml_serving.deepseek_lc import consult
 from nasdaq import DAY_TTL, correlate_stocks_with_news
 from social.social import correlate_stocks_with_sentiment
 from analysis.stock import Stock

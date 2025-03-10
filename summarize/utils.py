@@ -18,17 +18,22 @@ SUMMARIZE_PROMPT_V2 = (
 SYSTEM_PROMPT = "You are a financial summarization assistant specialized in extracting quantitative insights. Focus on key metrics, valuations (P/E, P/S ratios), growth rates, market positioning, and business risks. Ignore unrelated content and format your response as structured data."
 
 SUMMARIZE_PROMPT_V3 = (
-    "Analyze and summarize the financial content below in under 100 words total."
-    "Return a valid JSON object in this exact format:\n"
-    "{{\n"
-    '  "date": "publication date (YYYY-MM-DD format if available)",\n'
-    '  "source": "publication source name",\n'
+    "Extract and summarize key financial metrics from the content below."
+    "\n\nRETURN A VALID JSON OBJECT using this EXACT format:"
+    "\n{{\n"
+    '  "date": "publication date in YYYY-MM-DD format",\n'
+    '  "source": "name of the publishing organization",\n'
     '  "summary": {{\n'
-    '    "TICKER1": "1-2 sentence summary with key metrics and valuation",\n'
-    '    "TICKER2": "1-2 sentence summary with key metrics and valuation"\n'
+    '    "[ACTUAL_TICKER_SYMBOL]": "1-2 sentence summary with key metrics and valuation"\n'
     '  }},\n'
-    '  "relevant_symbol": "primary ticker discussed or all tickers separated by commas"\n'
+    '  "relevant_symbol": "actual ticker symbol of the company"\n'
     "}}\n\n"
-    "Include P/E ratios, P/S multiples, growth rates, and key business developments. Prioritize quantitative information."
+    "IMPORTANT INSTRUCTIONS:\n"
+    "1. Replace [ACTUAL_TICKER_SYMBOL] with the real stock ticker symbol (e.g., AAPL, MSFT, GOOGL)\n"
+    "2. If ticker isn't explicitly mentioned, research the company name to determine the correct ticker\n"
+    "3. Focus on quantitative data: revenue growth percentages, earnings, EPS, P/E ratios, margins\n"
+    "4. Include year-over-year comparisons when available\n"
+    "5. If multiple companies are mentioned, create separate entries for each ticker\n"
+    "6. Do not use placeholder text like 'TICKER1' in your response\n\n"
     "Text to analyze:\n{text}"
 )

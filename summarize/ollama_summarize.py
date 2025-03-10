@@ -15,7 +15,7 @@ client = Client(
 )
 
 
-# @cached(MONTH_TTL)
+@cached(MONTH_TTL)
 def ollama_summarize(text: str, prompt_version=3, model="plutus3") -> dict[str, Any]:
     """
     Summarize given text using the local Ollama instance with the specified model.

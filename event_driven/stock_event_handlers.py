@@ -102,9 +102,11 @@ class StockEventSystem:
         requested_by = event_data.get("requested_by")
 
         if requested_by and event_data:
-            # Format and send the result to Telegram
-            message = format_investment_message(event_data)
-            send_text_via_telegram(message, requested_by)
+            try:
+                message = format_investment_message(event_data)
+                send_text_via_telegram(message, requested_by)
+            except:
+                traceback.print_exc()
 
         # Log high-rating results
         if event_data and event_data.get("rating", 0) > self._rating_threshold:

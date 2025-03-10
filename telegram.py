@@ -18,7 +18,7 @@ def format_investment_message(result: dict) -> str:
     def escape_html(text):
         if isinstance(text, str):
             return text.replace("<", "&lt;").replace(">", "&gt;")
-        return text
+        return str(text)
 
     # Helper function to format lists
     def format_list(items):
@@ -32,7 +32,7 @@ def format_investment_message(result: dict) -> str:
             return escape_html(data)
 
         if not isinstance(data, dict):
-            return str(data)
+            return escape_html(data)
 
         formatted = []
         for key, value in data.items():
@@ -45,49 +45,52 @@ def format_investment_message(result: dict) -> str:
 
         return "\n".join(formatted)
 
+    # Filter out internal fields that shouldn't be displayed
+    displayed_result = {k: v for k, v in result.items() 
+                       if k not in ['request_id', 'requested_by']}
+    
     # Start building message
     message_parts = [
-        f"<b>Symbol:</b> {result.get('symbol', 'N/A')}",
-        f"<b>Rating:</b> {result.get('rating', 'N/A')}",
-        f"<b>Confidence:</b> {result.get('confidence', 'N/A')}",
+        f"<b>Symbol:</b> {displayed_result.get('symbol', 'N/A')}",
+        f"<b>Rating:</b> {displayed_result.get('rating', 'N/A')}",
+        f"<b>Confidence:</b> {displayed_result.get('confidence', 'N/A')}",
     ]
 
     # Add reasoning
-    if "reasoning" in result:
-        message_parts.append(f"<b>Reasoning:</b> {escape_html(result['reasoning'])}")
+    if "reasoning" in displayed_result:
+        message_parts.append(f"<b>Reasoning:</b> {escape_html(displayed_result['reasoning'])}")
 
     # Add bullish factors if available
-    if "bullish_factors" in result:
+    if "bullish_factors" in displayed_result:
         message_parts.append(
-            f"<b>Bullish Factors:</b>\n{format_list(result['bullish_factors'])}"
+            f"<b>Bullish Factors:</b>\n{format_list(displayed_result['bullish_factors'])}"
         )
 
     # Add bearish factors if available
-    if "bearish_factors" in result:
+    if "bearish_factors" in displayed_result:
         message_parts.append(
-            f"<b>Bearish Factors:</b>\n{format_list(result['bearish_factors'])}"
+            f"<b>Bearish Factors:</b>\n{format_list(displayed_result['bearish_factors'])}"
         )
 
     # Add macro impact if available
-    if "macro_impact" in result:
+    if "macro_impact" in displayed_result:
         message_parts.append(
-            f"<b>Macro Impact:</b> {escape_html(result.get('macro_impact', ''))}"
+            f"<b>Macro Impact:</b> {escape_html(displayed_result.get('macro_impact', ''))}"
         )
 
     # Add enter strategy
-    if "enter_strategy" in result:
+    if "enter_strategy" in displayed_result:
         message_parts.append(
-            f"<b>Enter Strategy:</b>\n{format_dict(result['enter_strategy'])}"
+            f"<b>Enter Strategy:</b>\n{format_dict(displayed_result['enter_strategy'])}"
         )
 
     # Add exit strategy
-    if "exit_strategy" in result:
+    if "exit_strategy" in displayed_result:
         message_parts.append(
-            f"<b>Exit Strategy:</b>\n{format_dict(result['exit_strategy'])}"
+            f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
         )
 
     return "\n\n".join(message_parts)
-
 
 def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):
     """

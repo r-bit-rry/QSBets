@@ -144,6 +144,7 @@ class StockEventSystem:
 
             # If this is the first run or if 4 hours have passed since last run
             if not hasattr(self, "_last_sentiment_time") or (current_time - self._last_sentiment_time).total_seconds() >= 14400:  # 4 hours in seconds
+                self._last_sentiment_time = current_time
                 # Get NASDAQ data
                 nasdaq_data = fetch_nasdaq_data()
 

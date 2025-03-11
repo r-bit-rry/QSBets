@@ -140,40 +140,34 @@ class StockEventSystem:
         Periodically fetch stocks with high sentiment and queue them for analysis
         """
         try:
-            # Only run every hour (use a timestamp check)
-            current_hour = datetime.now().hour
-            if (
-                hasattr(self, "_last_sentiment_hour")
-                and self._last_sentiment_hour == current_hour
-            ):
-                return
+            current_time = datetime.now()
 
-            self._last_sentiment_hour = current_hour
+            # If this is the first run or if 4 hours have passed since last run
+            if not hasattr(self, "_last_sentiment_time") or (current_time - self._last_sentiment_time).total_seconds() >= 14400:  # 4 hours in seconds
+                # Get NASDAQ data
+                nasdaq_data = fetch_nasdaq_data()
 
-            # Get NASDAQ data
-            nasdaq_data = fetch_nasdaq_data()
+                # Get sentiment data and correlate
+                sentiment_df = get_sentiment_df()
+                df = pd.merge(nasdaq_data, sentiment_df, on="symbol", how="inner")
+                # Sort by sentiment rating (descending) and take top stocks
+                if "sentiment_rating" in df.columns:
+                    top_stocks = df.sort_values("sentiment_rating", ascending=False).head(
+                        self._max_sentiment_stocks
+                    )
 
-            # Get sentiment data and correlate
-            sentiment_df = get_sentiment_df()
-            df = pd.merge(nasdaq_data, sentiment_df, on="symbol", how="inner")
-            # Sort by sentiment rating (descending) and take top stocks
-            if "sentiment_rating" in df.columns:
-                top_stocks = df.sort_values("sentiment_rating", ascending=False).head(
-                    self._max_sentiment_stocks
-                )
-
-                # Queue these stocks for analysis
-                for _, row in top_stocks.iterrows():
-                    symbol = row["symbol"]
-                    if pd.notna(symbol) and symbol:
-                        stock_request_queue.put(
-                            {
-                                "symbol": symbol,
-                                "request_id": f"sentiment_{datetime.now().timestamp()}",
-                                "requested_by": os.getenv("TELEGRAM_CHAT_ID"),
-                            }
-                        )
-                        logger.info(f"Queued high-sentiment stock for analysis: {symbol}")
+                    # Queue these stocks for analysis
+                    for _, row in top_stocks.iterrows():
+                        symbol = row["symbol"]
+                        if pd.notna(symbol) and symbol:
+                            stock_request_queue.put(
+                                {
+                                    "symbol": symbol,
+                                    "request_id": f"sentiment_{datetime.now().timestamp()}",
+                                    "requested_by": os.getenv("TELEGRAM_CHAT_ID"),
+                                }
+                            )
+                            logger.info(f"Queued high-sentiment stock for analysis: {symbol}")
 
         except Exception as e:
             logger.error(f"Error processing sentiment stocks: {str(e)}")

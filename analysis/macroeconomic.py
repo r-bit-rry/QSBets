@@ -1,5 +1,6 @@
 import os
 import traceback
+from dotenv import load_dotenv
 import pandas as pd
 import numpy as np
 from fredapi import Fred
@@ -10,6 +11,7 @@ import json
 from cache.cache import cached, DAY_TTL
 
 # You would need to get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
+load_dotenv(".env")
 api_key = os.getenv("FRED_API_KEY")
 fred = Fred(api_key=api_key)
 

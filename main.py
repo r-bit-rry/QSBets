@@ -19,7 +19,7 @@ def parse_args():
     parser.add_argument(
         '--top', 
         type=int, 
-        default=200,
+        default=400,
         help='Maximum number of top sentiment stocks to analyze initially (default: 10)'
     )
     
@@ -45,8 +45,8 @@ def parse_args():
     parser.add_argument(
         '--threshold', 
         type=float,
-        default=70.0,
-        help='Rating threshold for high-quality stock recommendations (default: 60.0)'
+        default=80.0,
+        help='Rating threshold for high-quality stock recommendations (default: 80.0)'
     )
     
     return parser.parse_args()

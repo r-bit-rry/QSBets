@@ -3,6 +3,8 @@ from functools import partial
 import json
 import os
 import time
+import yaml
+import numpy as np
 
 from analysis.macroeconomic import get_macroeconomic_context
 from social.social import fetch_stocks_sentiment
@@ -60,8 +62,8 @@ class Stock:
             print(f"Error processing metadata for {symbol}: {e}")
             return {"symbol": symbol}
 
-    def make_json(self):
-        """Optimized version to create more LLM-friendly JSON files with reduced tokens"""
+    def _generate_report(self):
+        """Generate the stock analysis report and return report data and timings"""
         report = {}
         timings = {}
         start_total = time.time()
@@ -107,7 +109,7 @@ class Stock:
         # Get current price from most recent quote
         historical_data = fetch_historical_quotes(self.symbol, 5)
         report["historical_quotes"] = self._optimize_historical_quotes(historical_data)
-        
+
         # Pre-analyze the technical indicators and add interpretations
         technical_analysis = {
             "rsi_analysis": interpret_rsi(technical_indicators.get('rsi')),
@@ -159,7 +161,7 @@ class Stock:
         report["institutional_holdings"] = self._optimize_institutional_holdings(
             holdings_data
         )
-        
+
         # NEW: Add institutional holdings interpretation
         report["institutional_analysis"] = interpret_institutional_holdings(report["institutional_holdings"])
         timings["institutional_holdings"] = time.time() - t_start
@@ -168,7 +170,7 @@ class Stock:
         t_start = time.time()
         insider_data = json.loads(fetch_insider_trading(self.symbol))
         report["insider_trading"] = self._optimize_insider_trading(insider_data)
-        
+
         # NEW: Add insider trading interpretation
         report["insider_analysis"] = interpret_insider_activity(report["insider_trading"])
         timings["insider_trading"] = time.time() - t_start
@@ -177,7 +179,7 @@ class Stock:
         t_start = time.time()
         preliminary_rating = generate_preliminary_rating(report)
         entry_strategy, exit_strategy = generate_entry_exit_strategy(report)
-        
+
         report["preliminary_rating"] = preliminary_rating
         report["preliminary_entry_strategy"] = entry_strategy
         report["preliminary_exit_strategy"] = exit_strategy
@@ -227,7 +229,10 @@ class Stock:
             report["press_releases"] = summarized_press
         timings["press_releases"] = time.time() - t_start
 
-        # Save JSON report (minified to conserve tokens)
+        return report, timings, start_total
+
+    def _save_report_and_print_timing(self, report, timings, start_total, format_type, file_extension, save_func):
+        """Save the report in the specified format and print timing information"""
         t_start = time.time()
         today = datetime.now().strftime("%Y-%m-%d")
         safe_name = "".join(
@@ -235,10 +240,13 @@ class Stock:
         )
         docs_folder = "analysis_docs"
         os.makedirs(docs_folder, exist_ok=True)
-        file_name = f"{safe_name}_{today}.json"
+        file_name = f"{safe_name}_{today}.{file_extension}"
         file_path = os.path.join(docs_folder, file_name)
+
+        # Save the file using the provided save function
         with open(file_path, "w", encoding="utf-8") as fp:
-            fp.write(json.dumps(report, separators=(",", ":")))
+            save_func(report, fp)
+
         timings["save_file"] = time.time() - t_start
 
         # Calculate total time and log all timings
@@ -246,7 +254,8 @@ class Stock:
         timings["total"] = total_time
 
         # Print timing summary
-        print(f"\n--- Performance Report for {self.symbol} ---")
+        format_label = f" ({format_type})" if format_type else ""
+        print(f"\n--- Performance Report for {self.symbol}{format_label} ---")
         print(f"Total processing time: {total_time:.2f}s")
 
         # Sort timings by duration (descending)
@@ -259,6 +268,60 @@ class Stock:
             print(f"  {name}: {duration:.2f}s ({(duration/total_time)*100:.1f}%)")
 
         return file_path
+
+    def make_json(self):
+        """Optimized version to create more LLM-friendly JSON files with reduced tokens"""
+        # Generate the report data
+        report, timings, start_total = self._generate_report()
+
+        # Save as JSON and print timing
+        return self._save_report_and_print_timing(
+            report, 
+            timings, 
+            start_total, 
+            "", 
+            "json",
+            lambda report, fp: fp.write(json.dumps(report, separators=(",", ":")))
+        )
+
+    def make_yaml(self):
+        """Create YAML files with the same report data as make_json but in YAML format"""
+        # Generate the report data
+        report, timings, start_total = self._generate_report()
+        report = self._convert_numpy_to_native(report)
+        # Save as YAML and print timing
+        return self._save_report_and_print_timing(
+            report, 
+            timings, 
+            start_total, 
+            "YAML", 
+            "yaml",
+            lambda report, fp: yaml.dump(
+                report, 
+                fp, 
+                default_flow_style=False,  # Use block style for better readability
+                sort_keys=False,           # Maintain key order
+                width=10000,               # Prevent unwanted line breaks
+                allow_unicode=True         # Support Unicode characters
+            )
+        )
+
+    def _convert_numpy_to_native(self, obj):
+        """Convert NumPy types to native Python types for better YAML serialization"""
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, dict):
+            return {key: self._convert_numpy_to_native(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy_to_native(item) for item in obj]
+        elif hasattr(obj, 'item'):  # Handle numpy scalar objects
+            return obj.item()
+        else:
+            return obj
 
     def _clean_financial_metric(self, value):
         """Convert financial strings like "$2(m)" to numeric values"""

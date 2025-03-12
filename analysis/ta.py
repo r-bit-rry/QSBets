@@ -48,8 +48,32 @@ def calculate_macd(df):
     return {
         "macd": float(macd[-1]) if macd.size > 0 else None,
         "signal": float(signal[-1]) if signal.size > 0 else None,
-        "hist": float(hist[-1]) if hist.size > 0 else None
+        "hist": float(hist[-1]) if hist.size > 0 else None,
+        "hist_prev": float(hist[-2]) if hist.size > 1 else None,
+        "macd_trend": "up" if macd.size > 1 and macd[-1] > macd[-2] else "down",
     }
+
+
+def find_support_resistance(df, lookback=30):
+    """Find potential support and resistance levels"""
+    supports = []
+    resistances = []
+
+    # Find recent local minima and maxima
+    for i in range(5, min(lookback, len(df) - 1)):
+        # Local minimum (support)
+        if df["low"].iloc[-i - 1] > df["low"].iloc[-i] < df["low"].iloc[-i + 1]:
+            supports.append(float(df["low"].iloc[-i]))
+        # Local maximum (resistance)
+        if df["high"].iloc[-i - 1] < df["high"].iloc[-i] > df["high"].iloc[-i + 1]:
+            resistances.append(float(df["high"].iloc[-i]))
+
+    # Return only the most recent levels (up to 3)
+    return {
+        "supports": sorted(supports)[:3],
+        "resistances": sorted(resistances, reverse=True)[:3],
+    }
+
 
 def calculate_sma(df, period):
     """
@@ -72,10 +96,25 @@ def calculate_bollinger_bands(df, period=20, nbdevup=2, nbdevdn=2):
     }
 
 def analyze_volume(df):
-    """
-    Analyze volume by returning the average volume over the period.
-    """
-    return float(df['volume'].mean())
+    avg_volume = float(df["volume"].mean())
+    recent_volume = float(df["volume"].iloc[-1])
+    return {
+        "avg_volume": avg_volume,
+        "recent_volume": recent_volume,
+        "relative_volume": (
+            round(recent_volume / avg_volume, 2) if avg_volume > 0 else 0
+        ),
+        "volume_trend": (
+            "increasing"
+            if df["volume"].iloc[-5:].is_monotonic_increasing
+            else (
+                "decreasing"
+                if df["volume"].iloc[-5:].is_monotonic_decreasing
+                else "flat"
+            )
+        ),
+    }
+
 
 def calculate_ema(df, period=20):
     """
@@ -147,7 +186,8 @@ def fetch_technical_indicators(symbol, period=150):
         "atr": calculate_atr(df, period=14),
         "adx": calculate_adx(df, period=14),
         "stochastic_14_3_3": calculate_stochastic(df),
-        "cci": calculate_cci(df, period=20)
+        "cci": calculate_cci(df, period=20),
+        "support_resistance": find_support_resistance(df)  # Add this line to include support/resistance levels
     }
     indicators = round_numbers(indicators)
     return indicators

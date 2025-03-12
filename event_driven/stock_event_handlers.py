@@ -192,7 +192,7 @@ class StockEventSystem:
 
                     # Create Stock instance and generate analysis JSON
                     stock = Stock(nasdaq_data=meta)
-                    file_path = stock.make_json()
+                    file_path = stock.make_yaml()
 
                     # Put the result in the analysis_result_queue for the consult loop
                     analysis_result_queue.put({

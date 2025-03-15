@@ -168,29 +168,39 @@ def calculate_cci(df, period=20):
     cci = talib.CCI(df['high'].values, df['low'].values, df['close'].values, timeperiod=period)
     return float(cci[-1]) if cci.size > 0 else None
 
+def safe_get_last_item(value):
+    """Safely get the last item of a list if it's a list and has items, otherwise return the value itself."""
+    if isinstance(value, list) and value:
+        return value[-1]
+    return value
+
 @cached(ttl_seconds=DAY_TTL)
-def fetch_technical_indicators(symbol, period=150):
+def fetch_technical_indicators(symbol, period=150, days=1):
     # Fetch and parse the historical quotes JSON from NASDAQ.
     historical_data = fetch_historical_quotes(symbol, period)
     df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
-
+    
+    # Return historical quotes as part of indicators to enable better charting
+    historical_dict = df.to_dict('index')
+    
     indicators = {
-        "rsi": calculate_rsi(df, period=14),
-        "macd": calculate_macd(df),
-        "sma_20": calculate_sma(df, 20),
-        "sma_50": calculate_sma(df, 50),
-        "sma_100": calculate_sma(df, 100),
-        "bollinger_bands": calculate_bollinger_bands(df),
-        "volume_profile": analyze_volume(df),
-        "ema_20": calculate_ema(df, period=20),
-        "atr": calculate_atr(df, period=14),
-        "adx": calculate_adx(df, period=14),
-        "stochastic_14_3_3": calculate_stochastic(df),
-        "cci": calculate_cci(df, period=20),
-        "support_resistance": find_support_resistance(df)  # Add this line to include support/resistance levels
+        "historical_quotes": historical_dict,
+        "rsi": [calculate_rsi(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
+        "macd": [calculate_macd(df.iloc[:i]) for i in range(len(df) - days, len(df))],
+        "sma_20": [calculate_sma(df.iloc[:i], 20) for i in range(len(df) - days, len(df))],
+        "sma_50": [calculate_sma(df.iloc[:i], 50) for i in range(len(df) - days, len(df))],
+        "sma_100": [calculate_sma(df.iloc[:i], 100) for i in range(len(df) - days, len(df))],
+        "bollinger_bands": [calculate_bollinger_bands(df.iloc[:i]) for i in range(len(df) - days, len(df))],
+        "volume_profile": [analyze_volume(df.iloc[:i]) for i in range(len(df) - days, len(df))],
+        "ema_20": [calculate_ema(df.iloc[:i], period=20) for i in range(len(df) - days, len(df))],
+        "atr": [calculate_atr(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
+        "adx": [calculate_adx(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
+        "stochastic_14_3_3": [calculate_stochastic(df.iloc[:i]) for i in range(len(df) - days, len(df))],
+        "cci": [calculate_cci(df.iloc[:i], period=20) for i in range(len(df) - days, len(df))],
+        "support_resistance": [find_support_resistance(df.iloc[:i]) for i in range(len(df) - days, len(df))]
     }
     indicators = round_numbers(indicators)
-    return indicators
+    return {k: (safe_get_last_item(v) if days == 1 else v) for k, v in indicators.items()}
 
 def round_numbers(obj):
     if isinstance(obj, (int, float)):

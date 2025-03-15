@@ -7,7 +7,7 @@ import yaml
 import numpy as np
 
 from analysis.macroeconomic import get_macroeconomic_context
-from social.social import fetch_stocks_sentiment
+from social.social import fetch_stocks_sentiment, fetch_stocks_social
 from summarize.ollama_summarize import ollama_summarize
 from nasdaq import (
     fetch_historical_quotes,
@@ -188,11 +188,11 @@ class Stock:
         # Historical quotes - already processed above
         timings["historical_quotes"] = time.time() - t_start
 
-        # SEC filings - keep only recent and relevant filings
-        t_start = time.time()
-        sec_filings = json.loads(fetch_sec_filings(self.symbol))
-        report["sec_filings"] = sec_filings[:5]  # Limit to most recent 5 filings
-        timings["sec_filings"] = time.time() - t_start
+        # SEC filings - keep only recent and relevant filings, need to implement summary for sec filings
+        # t_start = time.time()
+        # sec_filings = json.loads(fetch_sec_filings(self.symbol))
+        # report["sec_filings"] = sec_filings[:5]  # Limit to most recent 5 filings
+        # timings["sec_filings"] = time.time() - t_start
 
         # Social sentiment - only include if available
         t_start = time.time()
@@ -200,6 +200,12 @@ class Stock:
         if reddit_wsb_sentiment:
             report["reddit_wallstreetbets_sentiment"] = reddit_wsb_sentiment
         timings["reddit_wallstreetbets_sentiment"] = time.time() - t_start
+
+        t_start = time.time()
+        social_sentiment = fetch_stocks_social().get(self.symbol, {})
+        if social_sentiment:
+            report["social_sentiment"] = social_sentiment
+        timings["social_sentiment"] = time.time() - t_start
 
         # News with optimized summaries - eliminate redundant fields
         t_start = time.time()
@@ -307,7 +313,11 @@ class Stock:
         )
 
     def _convert_numpy_to_native(self, obj):
-        """Convert NumPy types to native Python types for better YAML serialization"""
+        """Convert NumPy types and pandas timestamps to native Python types for better YAML serialization"""
+        # Handle pandas Timestamp objects
+        if hasattr(obj, "_repr_base") and "timestamp" in str(type(obj)).lower():
+            return obj.strftime("%Y-%m-%d")  # Convert to ISO format date string
+
         if isinstance(obj, np.integer):
             return int(obj)
         elif isinstance(obj, np.floating):
@@ -315,10 +325,19 @@ class Stock:
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         elif isinstance(obj, dict):
-            return {key: self._convert_numpy_to_native(value) for key, value in obj.items()}
+            # Handle timestamp keys by converting them to strings
+            result = {}
+            for key, value in obj.items():
+                # Convert timestamp keys to strings
+                if hasattr(key, "_repr_base") and "timestamp" in str(type(key)).lower():
+                    new_key = key.strftime("%Y-%m-%d")
+                else:
+                    new_key = key
+                result[new_key] = self._convert_numpy_to_native(value)
+            return result
         elif isinstance(obj, list):
             return [self._convert_numpy_to_native(item) for item in obj]
-        elif hasattr(obj, 'item'):  # Handle numpy scalar objects
+        elif hasattr(obj, "item"):  # Handle numpy scalar objects
             return obj.item()
         else:
             return obj

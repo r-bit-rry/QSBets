@@ -2,6 +2,7 @@ import os
 import time
 
 import requests
+from event_driven.event_bus import EventBus, EventType
 
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -129,10 +130,15 @@ def handle_telegram_update(update: dict):
             ticker = parts[1]
             prompt = f"analyze stock {ticker.upper()}"
         else:
-            prompt = "Invalid command format for /analyze. " "Usage: /analyze {ticker}"
+            prompt = "Invalid command format for /analyze. Usage: /analyze {ticker}"
     else:
-        # If the command is not recognized, you might want to ignore or send a default response.
         prompt = "Command not recognized."
+
+    # Publish the event to the EventBus for analysis
+    EventBus().publish(EventType.TELEGRAM_COMMAND, {
+        "command": text,
+        "chat_id": chat_id
+    })
 
     send_text_via_telegram(prompt, chat_id)
 

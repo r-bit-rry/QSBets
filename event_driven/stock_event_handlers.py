@@ -123,7 +123,10 @@ class StockEventSystem:
                 # Check for high-rated stocks from the consult loop
                 if not consult_result_queue.empty():
                     result = consult_result_queue.get()
-                    if result.get("rating", 0) > self._rating_threshold:
+                    if (
+                        result.get("rating", 0) > self._rating_threshold
+                        or result.get("requested_by") != os.getenv("TELEGRAM_CHAT_ID")
+                    ):
                         self.event_bus.publish(EventType.ANALYSIS_COMPLETE, result)
 
                 # Periodically fetch and analyze stocks with sentiment

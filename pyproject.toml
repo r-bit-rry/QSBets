@@ -40,7 +40,9 @@ dependencies = [
     "fredapi",
     "mlx",
     "mlx-lm",
-    "pyyaml"
+    "pyyaml",
+    "streamlit",
+    "plotly"
 ]
 
 [project.scripts]

@@ -30,6 +30,11 @@ ta-lib dependancy was introduced, and does not have a fallback, on mac you can i
 brew install ta-lib
 ```
 
+mlx is used instead of deepseek and ollama, it is available for mac Metal, and can be simply replaced by the ollama server or the azure API. If you want to use the ollama server, you can install it with:
+```sh
+brew install ollama
+```
+
 It is recommended to isolate project dependencies. Run the following command to create the virtual environment with all extras:
 ```sh
 uv sync --all-extras --prerelease=allow
@@ -92,12 +97,15 @@ The system follows a clear #codebase flow:
 - ☑ Better technical indicators for stock analysis to support better strategies.
 - ☑ Calculate interpertation for techincal indicators, conserving tokens.
 - ☑ Event driven analysis, intial stocks list + telegram listening, main local analysis with technical indicators, and final deepseek analysis.
-- ☐ Better structured input to improve performance and token cost.
+- ☑ Better structured input to improve performance and token cost -> changed to yaml.
+- ☐ Add proper backtesting for the strategies.
+- ☐ Add logging to failed consulting and summarization attempts for better debugging.
 
 ## Additional Notes
 - **API Keys:** Remember to generate and securely store API keys before running the application.
 - **VENV:** Always activate your virtual environment before installing new packages or running commands.
 - **UV Tool:** If the project requirements change or another uv tool is needed, update the installation command accordingly.
+- This project uses both ta-lib and mlx, ta-lib can be compiled or downloaded or simply replaced with the ta-lib wheel. mlx can be replaced by ollama server or simply using the API for azure or other provider (follow langchain instructions).
 
 ## Contribution Guidelines
 - Feel free to submit issues or pull requests for improvements and bug fixes.

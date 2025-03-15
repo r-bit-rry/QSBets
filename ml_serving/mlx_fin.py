@@ -7,7 +7,7 @@ import time
 import traceback
 from typing import Any
 
-from summarize.mlx_summarize import MLX_PROMPT_V1
+from ml_serving.prompts import CONSULT_PROMPT_V6
 from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse
 from .mlx_model_server import get_model_server, MLXModelServer
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -146,7 +146,7 @@ def consult(filepath: str, max_retries: int = 3, base_delay: float = 2.0) -> dic
         print(f"Error reading file {filepath}: {e}")
         return {}
 
-    formatted_prompt = MLX_PROMPT_V1.format(loadedDocument=document)
+    formatted_prompt = CONSULT_PROMPT_V6.format(loadedDocument=document)
     messages = [
         SystemMessage(content=STOCK_SYSTEM_PROMPT),
         HumanMessage(content=formatted_prompt)

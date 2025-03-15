@@ -5,54 +5,14 @@ import json
 import random
 import time
 from dotenv import load_dotenv
-from mlx_lm import load, generate
 
 from cache.cache import MONTH_TTL, cached
+from ml_serving.prompts import CONSULT_PROMPT_V6
 from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.prompts import PromptTemplate
-
-from ml_serving.deepseek_lc import DEEPSEEK_PROMPT_V3, DEEPSEEK_PROMPT_V4, DEEPSEEK_PROMPT_V5
-
-MLX_PROMPT_V1 = PromptTemplate(
-    input_variables=["loadedDocument"],
-    template="""You are an expert financial analyst evaluating a stock for potential investment. Analyze the provided data and generate a comprehensive investment thesis with the following structure:
-
-{{
-  "symbol": "TICKER",
-  "rating": [0-100 score with 100 being strongest buy],
-  "confidence": [1-10 confidence in your rating],
-  "reasoning": [Concise summary of key factors driving your rating],
-  "bullish_factors": [
-    "List 3-5 specific reasons supporting a bullish case, with quantitative values"
-  ],
-  "bearish_factors": [
-    "List 2-4 specific risks or concerns, with quantitative values"
-  ],
-  "macro_impact": "How current macroeconomic conditions specifically affect this stock",
-  "enter_strategy": {{
-    "entry_price": "Specific price levels with rationale",
-    "entry_timing": "Market conditions that would trigger entry",
-    "technical_indicators": "Key indicators to monitor with specific values"
-  }},
-  "exit_strategy": {{
-    "profit_target": "Primary and secondary price targets with percentage gains",
-    "stop_loss": "Specific price with percentage loss and rationale",
-    "time_horizon": "Expected holding period",
-    "exit_conditions": [
-      "List specific technical or fundamental conditions that would trigger exit"
-    ]
-  }}
-}}
-
-Return ONLY the JSON response with no additional text.
-
-Stock Data:
-{loadedDocument}
-"""
-)
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -131,7 +91,7 @@ def consult(filepath: str, max_retries: int = 3, base_delay: float = 2.0) -> dic
         print(f"Error reading file {filepath}: {e}")
         return {}
 
-    formatted_prompt = MLX_PROMPT_V1.format(loadedDocument=document)
+    formatted_prompt = CONSULT_PROMPT_V6.format(loadedDocument=document)
     messages = [
         SystemMessage(content=STOCK_SYSTEM_PROMPT),
         HumanMessage(content=formatted_prompt)

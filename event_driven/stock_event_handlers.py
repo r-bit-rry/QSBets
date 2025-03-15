@@ -17,14 +17,12 @@ from event_driven.event_bus import EventBus, EventType
 # from ml_serving.deepseek_lc import consult
 from analysis.stock import Stock
 from ml_serving.mlx_fin import MODEL_PATH, extract_json_from_response
+from ml_serving.prompts import CONSULT_PROMPT_V6
 from social.social import get_sentiment_df
 from nasdaq import fetch_nasdaq_data
 from telegram import send_text_via_telegram, format_investment_message
 from ml_serving.mlx_model_server import get_model_server
-from summarize.mlx_summarize import (
-    MLX_PROMPT_V1,
-    STOCK_SYSTEM_PROMPT,
-)
+from summarize.mlx_summarize import STOCK_SYSTEM_PROMPT
 from langchain.schema.messages import SystemMessage, HumanMessage
 
 # Configure logging
@@ -277,7 +275,7 @@ class StockEventSystem:
                         with open(file_path, "r") as file:
                             document = file.read()
 
-                        formatted_prompt = MLX_PROMPT_V1.format(loadedDocument=document)
+                        formatted_prompt = CONSULT_PROMPT_V6.format(loadedDocument=document)
                         messages = [
                             SystemMessage(content=STOCK_SYSTEM_PROMPT),
                             HumanMessage(content=formatted_prompt),

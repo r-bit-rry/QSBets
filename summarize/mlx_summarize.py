@@ -8,11 +8,12 @@ from dotenv import load_dotenv
 
 from cache.cache import MONTH_TTL, cached
 from ml_serving.prompts import CONSULT_PROMPT_V6
-from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse
+from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.schema.messages import HumanMessage, SystemMessage
 from langchain.prompts import PromptTemplate
+from datetime import datetime  # Add this import
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -55,7 +56,7 @@ def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
         try:
             # Generate response using the MLXPipeline
             response = chatmlx.invoke(messages)
-            
+
             # Extract the JSON response from the text output
             json_text = extract_json_from_response(response.content)
 
@@ -66,6 +67,7 @@ def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
             print(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
+                dump_failed_text(formatted_prompt)
                 return {}
 
 def consult(filepath: str, max_retries: int = 3, base_delay: float = 2.0) -> dict:
@@ -117,6 +119,7 @@ def consult(filepath: str, max_retries: int = 3, base_delay: float = 2.0) -> dic
             retry_count += 1
             if retry_count > max_retries:
                 print(f"Failed after {max_retries} retries: {e}")
+                dump_failed_text(formatted_prompt)
                 return {}
 
             # Exponential backoff with jitter

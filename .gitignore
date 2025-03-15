@@ -144,4 +144,5 @@ news_items/*
 chroma_db/*
 results/*
 .events/*
+.debug_dumps/*
 ml_serving/mlx_model

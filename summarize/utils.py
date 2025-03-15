@@ -1,3 +1,5 @@
+from datetime import datetime
+import os
 from pydantic import BaseModel
 
 
@@ -6,6 +8,23 @@ class SummaryResponse(BaseModel):
     source: str
     summary: dict
     relevant_symbol: str
+
+
+def dump_failed_text(text: str):
+    """
+    Dump the failed text to a file in the debug_dumps folder.
+
+    Args:
+        text: The text to dump
+    """
+    if not os.path.exists(".debug_dumps"):
+        os.makedirs(".debug_dumps")
+
+    date_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f".debug_dumps/{date_str}.txt"
+
+    with open(filename, "w") as file:
+        file.write(text)
 
 
 SUMMARIZE_PROMPT_V1 = "Summarize the following text in concise and technical bullet points for company symbol {symbol} only, keep relevant figures, numbers and relevant names to be used by further analysis, if no relevant information is provided, return article title and the string, 'no relevant data':\n\n{text}"

@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta
+import logging
+import traceback
 from dotenv import load_dotenv
 import pandas as pd
 import requests
@@ -8,6 +10,11 @@ from trafilatura import extract
 import time
 import json
 from cache.cache import cached, DAY_TTL, MONTH_TTL
+
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger("nasdaq")
 
 NASDAQ_HEADERS = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -192,20 +199,19 @@ def fetch_revenue_earnings(symbol: str) -> str:
     revenue_earnings_url = (
         f"https://api.nasdaq.com/api/company/{symbol}/revenue?limit=1"
     )
-    json_data = fetch_nasdaq_api(revenue_earnings_url)
-    data = json_data.get("data", {})
-    if data is None:
-        return json.dumps({"error": "No data field in API response"}, indent=2)
 
-    data = json_data.get("data")  # May be None!
+    json_data = fetch_nasdaq_api(revenue_earnings_url)
+    data = json_data.get("data")
     if not data:
-        return json.dumps({"error": "No data field in API response"}, indent=2)
+        logger.warning("No rows found in revenue table")
+        return transposed_data
 
     revenue_table = data.get("revenueTable") or {}
     rows = revenue_table.get("rows") or []
 
     if not rows:
-        return json.dumps({"error": "No rows in revenue table"}, indent=2)
+        logger.warning("No rows found in revenue table")
+        return []
 
     # Transpose the table to only include groups containing 4 entries each.
     transposed_data = []
@@ -219,14 +225,13 @@ def fetch_revenue_earnings(symbol: str) -> str:
             }
             transposed_data.append(quarter_data)
     except Exception as e:
-        return json.dumps(
-            {"error": "Error processing revenue rows", "detail": str(e)}, indent=2
-        )
+        logger.error(f"Error processing revenue rows: {e}")
+        return []
 
     # Keep only the last 6 quarters
     transposed_data = transposed_data[-6:]
 
-    return json.dumps(transposed_data)
+    return transposed_data
 
 
 @cached(ttl_seconds=DAY_TTL)
@@ -241,11 +246,11 @@ def fetch_short_interest(symbol: str) -> str:
     json_data = fetch_nasdaq_api(short_interest_url)
     data = json_data.get("data", {})
     if data is None:
-        return json.dumps([])
+        return []
     short_interest_table = data.get("shortInterestTable") or {}
     rows = short_interest_table.get("rows") or []
     # Update: Take only the 4 most recent rows.
-    return json.dumps(rows[:4])
+    return rows[:4]
 
 
 @cached(ttl_seconds=DAY_TTL)
@@ -259,7 +264,7 @@ def fetch_institutional_holdings(symbol: str) -> str:
     json_data = fetch_nasdaq_api(institutional_holdings_url)
     data = json_data.get("data", {})
     if data is None:
-        return json.dumps({})
+        return {}
 
     # Extract relevant information
     ownership_summary = data.get("ownershipSummary", {})
@@ -282,7 +287,7 @@ def fetch_institutional_holdings(symbol: str) -> str:
         "holdings_transactions": cleaned_holdings_transactions,
     }
 
-    return json.dumps(institutional_holdings_info)
+    return institutional_holdings_info
 
 
 @cached(ttl_seconds=DAY_TTL)
@@ -349,7 +354,7 @@ def fetch_insider_trading(symbol: str) -> str:
     json_data = fetch_nasdaq_api(insider_trading_url)
     data = json_data.get("data", {})
     if data is None:
-        return json.dumps({})
+        return {}
 
     # Extract relevant information
     number_of_trades = data.get("numberOfTrades", {}).get("rows", [])
@@ -366,7 +371,7 @@ def fetch_insider_trading(symbol: str) -> str:
         "transaction_table": cleaned_transaction_table,
     }
 
-    return json.dumps(insider_trading_info)
+    return insider_trading_info
 
 @cached(ttl_seconds=MONTH_TTL)
 def fetch_description(symbol: str) -> str:
@@ -393,7 +398,7 @@ def fetch_sec_filings(symbol: str) -> str:
     response = fetch_nasdaq_api(sec_filings_url)
     data = response.get("data", {})
     if data is None:
-        return json.dumps([])
+        return []
     rows = data.get("rows", [])
     latest_filings = data.get("latest") or []
 
@@ -434,7 +439,7 @@ def fetch_sec_filings(symbol: str) -> str:
             }
         )
 
-    return json.dumps(filings_content)
+    return filings_content
 
 @cached(ttl_seconds=1800)
 def fetch_nasdaq_news(limit:int = 1000) -> pd.DataFrame:

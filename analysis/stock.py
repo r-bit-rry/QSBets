@@ -137,7 +137,7 @@ class Stock:
 
         # Revenue and Earnings - ensure numeric values
         t_start = time.time()
-        revenue_data = json.loads(fetch_revenue_earnings(self.symbol))
+        revenue_data = fetch_revenue_earnings(self.symbol)
         for item in revenue_data:
             if isinstance(item, dict):  # Only process if item is a dict
                 for key, value in item.items():
@@ -150,14 +150,14 @@ class Stock:
 
         # Skip empty data sections
         t_start = time.time()
-        short_interest = json.loads(fetch_short_interest(self.symbol))
+        short_interest = fetch_short_interest(self.symbol)
         if short_interest and not all(len(item) == 0 for item in short_interest):
-            report["short_interest"] = short_interest
+            report["short interest"] = short_interest
         timings["short_interest"] = time.time() - t_start
 
         # Optimize institutional holdings - clean numeric data
         t_start = time.time()
-        holdings_data = json.loads(fetch_institutional_holdings(self.symbol))
+        holdings_data = fetch_institutional_holdings(self.symbol)
         report["institutional_holdings"] = self._optimize_institutional_holdings(
             holdings_data
         )
@@ -168,7 +168,7 @@ class Stock:
 
         # Optimize insider trading - clean numeric data and standardize dates
         t_start = time.time()
-        insider_data = json.loads(fetch_insider_trading(self.symbol))
+        insider_data = fetch_insider_trading(self.symbol)
         report["insider_trading"] = self._optimize_insider_trading(insider_data)
 
         # NEW: Add insider trading interpretation
@@ -190,7 +190,7 @@ class Stock:
 
         # SEC filings - keep only recent and relevant filings, need to implement summary for sec filings
         # t_start = time.time()
-        # sec_filings = json.loads(fetch_sec_filings(self.symbol))
+        # sec_filings = fetch_sec_filings(self.symbol)
         # report["sec_filings"] = sec_filings[:5]  # Limit to most recent 5 filings
         # timings["sec_filings"] = time.time() - t_start
 
@@ -373,17 +373,26 @@ class Stock:
 
         # Clean ownership summary percentages and values
         if "ownership_summary" in data:
+            optimized_ownership = {}
             for category, item in data["ownership_summary"].items():
-                if "value" in item:
-                    if "%" in item["value"]:
-                        item["value"] = float(item["value"].replace("%", "")) / 100
-                    elif "$" in item["value"] and "million" in item["value"]:
-                        item["value"] = (
-                            float(item["value"].replace("$", "").replace(" million", ""))
-                            * 1000000
-                        )
-
-            result["ownership_summary"] = data["ownership_summary"]
+                if "label" in item and "value" in item:
+                    # Use the human-readable label as the key
+                    key = item["label"]
+                    value = item["value"]
+                    
+                    # Clean the value
+                    if isinstance(value, str):
+                        if "%" in value:
+                            value = float(value.replace("%", "")) / 100
+                        elif "$" in value and "million" in value:
+                            value = float(value.replace("$", "").replace(",", "").replace(" million", "")) * 1000000
+                        elif "$" in value:
+                            # Handle dollar values without "million" suffix
+                            value = float(value.replace("$", "").replace(",", ""))
+                    
+                    optimized_ownership[key] = value
+            
+            result["ownership_summary"] = optimized_ownership
 
         # Include only key transaction data
         if "holdings_transactions" in data:

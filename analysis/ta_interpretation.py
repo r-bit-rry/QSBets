@@ -248,20 +248,16 @@ def interpret_institutional_holdings(holdings_data):
     """Summarize institutional ownership"""
     if not holdings_data:
         return {"status": "unknown", "description": "No institutional holdings data available"}
-        
+
     ownership_summary = holdings_data.get('ownership_summary', {})
     key_transactions = holdings_data.get('key_transactions', [])
-    
+
     # Get institutional ownership percentage
-    inst_ownership = None
-    for key, item in ownership_summary.items():
-        if 'Institutional Ownership' in item.get('label', ''):
-            inst_ownership = item.get('value')
-            break
-    
+    inst_ownership = ownership_summary.get("Institutional Ownership")
+
     if inst_ownership is None:
         return {"status": "unknown", "description": "Institutional ownership data not available"}
-    
+
     # Calculate net institutional buying/selling
     buys = 0
     sells = 0
@@ -270,7 +266,7 @@ def interpret_institutional_holdings(holdings_data):
             buys += 1
         elif "-" in tx.get('sharesChangePCT', ''):
             sells += 1
-    
+
     if inst_ownership > 0.7:
         status = "very_high_ownership"
         base_desc = f"Very high institutional ownership ({inst_ownership*100:.1f}%)"
@@ -283,7 +279,7 @@ def interpret_institutional_holdings(holdings_data):
     else:
         status = "low_ownership"
         base_desc = f"Low institutional ownership ({inst_ownership*100:.1f}%)"
-        
+
     # Add transaction trend to description
     if buys > sells and buys >= 3:
         return {
@@ -607,8 +603,8 @@ def generate_preliminary_rating(stock_data):
     return {
         "rating": total_score,
         "confidence": confidence,
-        "technical_score": normalized_tech,
-        "fundamental_score": normalized_fund,
+        "technical_score": f"{normalized_tech}/70",
+        "fundamental_score": f"{normalized_fund}/30",
         "explanations": explanations
     }
 

@@ -189,11 +189,12 @@ def fetch_stocks_sentiment(timeframe: str = "1+week") -> dict:
     """
     url = f"https://api.beta.swaggystocks.com/wsb/sentiment/rating?timeframe={timeframe}"
     field_mappings = {
-        "sentiment_rating": "sentiment_score_from_neg10_to_pos10",
-        "positive": "positive_reddit_mentions",
-        "neutral": "neutral_reddit_mentions",
-        "negative": "negative_reddit_mentions",
-        "options_oi_call_ratio": "calls_to_put_open_interest_ratio",
+        "sentiment_rating": "sentiment_score[-10,10]",
+        "positive": "positive_mentions",
+        "neutral": "neutral_mentions",
+        "negative": "negative_mentions",
+        "options_oi_call_ratio": "calls_to_put_ratio",
+        "30_day_avg_iv": "avg_iv_30d",
     }
 
     skip_fields = {"ticker", "timestamp", "market_cap"}

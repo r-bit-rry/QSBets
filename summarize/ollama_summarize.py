@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 from ollama import Client
 
 from cache.cache import MONTH_TTL, cached
-from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse
+from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -33,11 +33,12 @@ def ollama_summarize(text: str, prompt_version=3, model="plutus3") -> dict[str, 
 
     # Select the appropriate prompt based on version
     prompt = SUMMARIZE_PROMPT_V3 if prompt_version == 3 else SUMMARIZE_PROMPT_V2
+    formatted_prompt = prompt.format(text=text)
 
     while attempt <= max_attempts:
         try:
             response = client.generate(
-                prompt=prompt.format(text=text),
+                prompt=formatted_prompt,
                 format=SummaryResponse.model_json_schema(),
                 model=model,
                 system=SYSTEM_PROMPT,
@@ -50,4 +51,5 @@ def ollama_summarize(text: str, prompt_version=3, model="plutus3") -> dict[str, 
             print(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
+                dump_failed_text(formatted_prompt)
                 return {}

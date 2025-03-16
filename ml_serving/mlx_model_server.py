@@ -52,7 +52,7 @@ class MLXModelServer:
         print(f"Loading MLX model from {model_path}...")
         self.llm = MLXPipeline.from_model_id(
             model_id=model_path,
-            pipeline_kwargs={"max_tokens": 3072, "verbose": True}
+            pipeline_kwargs={"max_tokens": 4096, "verbose": True}
         )
         print("MLX model loaded successfully")
         

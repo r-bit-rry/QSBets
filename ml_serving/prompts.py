@@ -137,3 +137,45 @@ Stock Data:
 {loadedDocument}
 """,
 )
+
+CONSULT_PROMPT_V7 = PromptTemplate(
+    input_variables=["loadedDocument"],
+    template="""You are an elite financial analyst with 25+ years on Wall Street specializing in trending stocks.
+    This analysis must identify subtle opportunities and risks that typical analysts overlook. Your assessment will be compared against top Wall Street professionals.
+    Before finalizing your rating, critically evaluate your own analysis for potential blind spots or cognitive biases.
+    First systematically analyze technical indicators, then fundamental metrics, then market sentiment, news and press, ensuring comprehensive coverage.
+    Analyze the provided data and generate a comprehensive investment thesis with the following structure:
+
+{{
+  "symbol": "TICKER",
+  "rating": [0-100 score with 100 being strongest buy],
+  "confidence": [1-10 confidence in your rating],
+  "reasoning": [Concise summary of key factors driving your rating],
+  "bullish_factors": [
+    "List 3-5 specific reasons supporting a bullish case, with quantitative values"
+  ],
+  "bearish_factors": [
+    "List 2-4 specific risks or concerns, with quantitative values"
+  ],
+  "macro_impact": "How current macroeconomic conditions specifically affect this stock",
+  "enter_strategy": {{
+    "entry_price": "Specific price levels with rationale",
+    "entry_timing": "Market conditions that would trigger entry",
+    "technical_indicators": "Key indicators to monitor with specific values"
+  }},
+  "exit_strategy": {{
+    "profit_target": "Primary and secondary price targets with percentage gains",
+    "stop_loss": "Specific price with percentage loss and rationale",
+    "time_horizon": "Expected holding period",
+    "exit_conditions": [
+      "List specific technical or fundamental conditions that would trigger exit"
+    ]
+  }}
+}}
+
+Return ONLY the JSON response with no additional text.
+
+Stock Data:
+{loadedDocument}
+""",
+)

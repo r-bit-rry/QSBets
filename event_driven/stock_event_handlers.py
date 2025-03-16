@@ -14,16 +14,12 @@ from queue import Queue
 import pandas as pd
 
 from event_driven.event_bus import EventBus, EventType
-# from ml_serving.deepseek_lc import consult
+from ml_serving.mlx_fin import MODEL_PATH, consult
 from analysis.stock import Stock
-from ml_serving.mlx_fin import MODEL_PATH, extract_json_from_response
-from ml_serving.prompts import CONSULT_PROMPT_V6
 from social.social import get_sentiment_df
 from nasdaq import fetch_nasdaq_data
 from telegram import send_text_via_telegram, format_investment_message
 from ml_serving.mlx_model_server import get_model_server
-from summarize.mlx_summarize import STOCK_SYSTEM_PROMPT
-from langchain.schema.messages import SystemMessage, HumanMessage
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -221,14 +217,11 @@ class StockEventSystem:
         today_str = datetime.now().strftime("%Y-%m-%d")
         results_file = os.path.join(self.results_dir, f"results_{today_str}.jsonl")
 
-        # Get the model server instance
-        model_server = get_model_server()
-
-        # Callback function for when consult requests complete
-        def on_consult_complete(request_id, result):
+        def on_consult_complete(result):
+            """Handle completed consultation results"""
             # Check for errors
-            if "error" in result:
-                logger.error(f"Consult error for request {request_id}: {result['error']}")
+            if not result or "error" in result:
+                logger.error(f"Consult error: {result.get('error', 'Unknown error')}")
                 return
 
             # Extract the metadata from the result
@@ -237,28 +230,26 @@ class StockEventSystem:
             requested_by = metadata.get("requested_by")
 
             try:
-                json_str = extract_json_from_response(result["content"])
-                parsed_result = json.loads(json_str)
-
                 # Add metadata from the original request
-                if symbol and "symbol" not in parsed_result:
-                    parsed_result["symbol"] = symbol
+                if symbol and "symbol" not in result:
+                    result["symbol"] = symbol
 
-                parsed_result["request_id"] = metadata.get("request_id")
-                parsed_result["requested_by"] = requested_by
+                result["request_id"] = metadata.get("request_id")
+                result["requested_by"] = requested_by
 
                 # Write to the results file
                 with open(results_file, "a") as f:
-                    f.write(json.dumps(parsed_result) + "\n")
+                    f.write(json.dumps(result) + "\n")
 
                 # Put in the consult_result_queue for the main loop
-                consult_result_queue.put(parsed_result)
+                consult_result_queue.put(result)
 
                 logger.info(
-                    f"Consultation for {symbol} completed with rating {parsed_result.get('rating', 'N/A')}"
+                    f"Consultation for {symbol} completed with rating {result.get('rating', 'N/A')}"
                 )
             except Exception as e:
                 logger.error(f"Error processing consult result: {str(e)}")
+                traceback.print_exc()
 
         while True:
             try:
@@ -268,47 +259,38 @@ class StockEventSystem:
                     symbol = analysis.get("symbol")
                     file_path = analysis.get("file_path")
 
-                    logger.info(f"Submitting consultation for {symbol} to MLX Model Server")
+                    logger.info(f"Submitting consultation for {symbol}")
 
                     try:
-                        # Read the file content
-                        with open(file_path, "r") as file:
-                            document = file.read()
+                        # Use the consult function with metadata
+                        metadata = {
+                            "symbol": symbol,
+                            "file_path": file_path,
+                            "request_id": analysis.get("request_id"),
+                            "requested_by": analysis.get("requested_by"),
+                        }
+                        
+                        # Start consultation in a separate thread to avoid blocking
+                        threading.Thread(
+                            target=lambda: consult(
+                                file_path,
+                                metadata=metadata,
+                                callback=on_consult_complete
+                            ),
+                            daemon=True
+                        ).start()
 
-                        formatted_prompt = CONSULT_PROMPT_V6.format(loadedDocument=document)
-                        messages = [
-                            SystemMessage(content=STOCK_SYSTEM_PROMPT),
-                            HumanMessage(content=formatted_prompt),
-                        ]
-
-                        # Submit to the model server
-                        request_id = f"consult_{symbol}_{time.time()}"
-                        model_server.submit_request(
-                            request_id=request_id,
-                            messages=messages,
-                            callback=on_consult_complete,
-                            metadata={
-                                "symbol": symbol,
-                                "file_path": file_path,
-                                "request_id": analysis.get("request_id"),
-                                "requested_by": analysis.get("requested_by"),
-                            },
-                        )
-
-                        logger.info(
-                            f"Consultation for {symbol} submitted to MLX Model Server"
-                        )
-
+                        logger.info(f"Consultation for {symbol} submitted")
                     except Exception as e:
-                        logger.error(
-                            f"Error submitting consult request for {symbol}: {str(e)}"
-                        )
+                        logger.error(f"Error submitting consult request for {symbol}: {str(e)}")
+                        traceback.print_exc()
                 else:
                     # Sleep if no analyses are waiting
                     time.sleep(1)
 
             except Exception as e:
                 logger.error(f"Error in consult loop: {str(e)}")
+                traceback.print_exc()
                 time.sleep(5)  # Continue after a short delay
 
 stock_system = StockEventSystem()
@@ -316,7 +298,7 @@ stock_system = StockEventSystem()
 
 def initialize():
     """Initialize the stock event handlers system with all three loops"""
-    get_model_server(MODEL_PATH, num_workers=4)
+    get_model_server(MODEL_PATH)
 
     bus = EventBus()
     bus.start()

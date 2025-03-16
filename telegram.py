@@ -107,7 +107,8 @@ def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):
 
 def handle_telegram_update(update: dict):
     """
-    Handles incoming Telegram updates and responds to the /analyze_hold and /analyze commands.
+    Handles incoming Telegram updates and processes /analyze_hold and /analyze commands.
+    Adds commands to the analysis queue and reports back to the user.
     """
     message = update.get("message", {})
     chat_id = message.get("chat", {}).get("id")
@@ -116,51 +117,95 @@ def handle_telegram_update(update: dict):
     if text.startswith("/analyze_hold"):
         parts = text.split()
         if len(parts) >= 3:
-            ticker = parts[1]
+            ticker = parts[1].upper()
             price = parts[2]
-            prompt = f"Analyze stock I'm currently holding {ticker.upper()} bought at {price}"
-        else:
-            prompt = (
-                "Invalid command format for /analyze_hold. "
-                "Usage: /analyze_hold {ticker} {price}"
+            confirmation_msg = f"Adding {ticker} (owned at {price}) to analysis queue with high priority"
+
+            # Publish the event to the EventBus for priority analysis
+            EventBus().publish(
+                EventType.TELEGRAM_COMMAND,
+                {
+                    "action": "own",
+                    "ticker": ticker,
+                    "price": price,
+                    "chat_id": chat_id,
+                },
             )
+        else:
+            confirmation_msg = "Invalid command format for /analyze_hold. Usage: /analyze_hold {ticker} {price}"
+
     elif text.startswith("/analyze"):
         parts = text.split()
         if len(parts) >= 2:
-            ticker = parts[1]
-            prompt = f"analyze stock {ticker.upper()}"
+            ticker = parts[1].upper()
+            confirmation_msg = (
+                f"Adding {ticker} to analysis queue with high priority..."
+            )
+
+            # Publish the event to the EventBus for priority analysis
+            EventBus().publish(
+                EventType.TELEGRAM_COMMAND,
+                {
+                    "action": "buy",
+                    "ticker": ticker,
+                    "chat_id": chat_id,
+                },
+            )
         else:
-            prompt = "Invalid command format for /analyze. Usage: /analyze {ticker}"
+            confirmation_msg = (
+                "Invalid command format for /analyze. Usage: /analyze {ticker}"
+            )
+
     else:
-        prompt = "Command not recognized."
+        confirmation_msg = "Command not recognized. Available commands: /analyze {ticker} or /analyze_hold {ticker} {price}"
 
-    # Publish the event to the EventBus for analysis
-    EventBus().publish(EventType.TELEGRAM_COMMAND, {
-        "command": text,
-        "chat_id": chat_id
-    })
-
-    send_text_via_telegram(prompt, chat_id)
+    # Send confirmation message back to user
+    send_text_via_telegram(confirmation_msg, chat_id)
 
 
 def listen_to_telegram():
     """
-    Listens for incoming Telegram updates using long polling.
+    Listens for incoming Telegram updates using long polling without storing state.
+    Uses Telegram's offset parameter to mark messages as read.
     """
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     url = f"https://api.telegram.org/bot{bot_token}/getUpdates"
-    last_update_id = None
+
+    # First, get the current update_id to start from
+    try:
+        # Get the latest update_id without processing messages
+        response = requests.get(f"{url}?limit=1")
+        result = response.json().get("result", [])
+
+        # If there are any updates, start from the next one
+        offset = result[0]["update_id"] + 1 if result else None
+        print(f"Starting Telegram listener from update_id: {offset or 'latest'}")
+    except Exception as e:
+        print(f"Error initializing Telegram offset: {e}")
+        offset = None
 
     while True:
-        params = {"timeout": 100, "offset": last_update_id}
-        response = requests.get(url, params=params)
-        updates = response.json().get("result", [])
+        try:
+            # Build parameters with offset if available
+            params = {"timeout": 100}
+            if offset:
+                params["offset"] = offset
 
-        for update in updates:
-            handle_telegram_update(update)
-            last_update_id = update["update_id"] + 1
+            response = requests.get(url, params=params)
+            updates = response.json().get("result", [])
 
-        time.sleep(1)
+            for update in updates:
+                handle_telegram_update(update)
+                # Always increment offset to mark as read for next poll
+                offset = update["update_id"] + 1
+
+        except Exception as e:
+            print(f"Error in Telegram listener: {e}")
+            # Wait slightly longer on error
+            time.sleep(5)
+            continue
+
+        time.sleep(10)
 
 
 def test_send_text_via_telegram():

@@ -18,7 +18,7 @@ from ml_serving.mlx_fin import MODEL_PATH, consult
 from analysis.stock import Stock
 from social.social import get_sentiment_df
 from nasdaq import fetch_nasdaq_data
-from telegram import send_text_via_telegram, format_investment_message
+from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
 from ml_serving.mlx_model_server import get_model_server
 
 # Configure logging
@@ -64,7 +64,6 @@ class StockEventSystem:
 
         logger.info(f"Stock request received for {symbol}")
 
-        # Push to the analysis queue
         stock_request_queue.put({
             "symbol": symbol,
             "request_id": event_data.get("request_id", str(datetime.now().timestamp())),
@@ -72,23 +71,32 @@ class StockEventSystem:
         })
 
     def handle_telegram_command(self, event_data: Dict[str, Any]) -> None:
-        """Handle commands from Telegram"""
-        command = event_data.get("command")
+        """
+        Handle commands from Telegram with priority queue support
+        Processes 'buy' and 'own' actions from Telegram commands
+        """
+        action = event_data.get("action")
+        ticker = event_data.get("ticker")
         chat_id = event_data.get("chat_id")
-
-        if command.startswith("/analyze"):
-            parts = command.split()
-            if len(parts) >= 2:
-                symbol = parts[1].upper()
-                # Create a stock request
-                self.event_bus.publish(EventType.STOCK_REQUEST, {
-                    "symbol": symbol,
-                    "requested_by": chat_id,
-                    "request_id": str(datetime.now().timestamp())
-                })
-                send_text_via_telegram(f"Analysis for {symbol} has been queued.", chat_id)
-            else:
-                send_text_via_telegram("Please specify a stock symbol. Usage: /analyze SYMBOL", chat_id)
+        price = event_data.get("price")
+        
+        if not ticker or not action:
+            logger.error("Telegram command received without ticker or action")
+            return
+        
+        logger.info(f"Telegram {action} command received for {ticker}")
+        
+        request_data = {
+            "symbol": ticker,
+            "requested_by": chat_id,
+            "request_id": str(datetime.now().timestamp()),
+            "action_type": action
+        }
+        
+        if action == "own" and price:
+            request_data["purchase_price"] = price
+        
+        stock_request_queue.queue.insert(0, request_data)
 
     def handle_analysis_complete(self, event_data: Dict[str, Any]) -> None:
         """Handle completed analysis results"""
@@ -268,6 +276,7 @@ class StockEventSystem:
                             "file_path": file_path,
                             "request_id": analysis.get("request_id"),
                             "requested_by": analysis.get("requested_by"),
+                            "price": analysis.get("price")
                         }
                         
                         # Start consultation in a separate thread to avoid blocking
@@ -308,8 +317,9 @@ def initialize():
     threading.Thread(target=stock_system.start_main_loop, daemon=True).start()
     threading.Thread(target=stock_system.start_analysis_loop, daemon=True).start()
     threading.Thread(target=stock_system.start_consult_loop, daemon=True).start()
+    threading.Thread(target=listen_to_telegram, daemon=True).start()
 
-    logger.info("Stock event system initialized with all three loops running")
+    logger.info("Stock event system initialized with all three loops and telegram listener running")
 
 
 if __name__ == "__main__":

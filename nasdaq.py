@@ -204,7 +204,7 @@ def fetch_revenue_earnings(symbol: str) -> str:
     data = json_data.get("data")
     if not data:
         logger.warning("No rows found in revenue table")
-        return transposed_data
+        return []
 
     revenue_table = data.get("revenueTable") or {}
     rows = revenue_table.get("rows") or []

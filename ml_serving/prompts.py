@@ -179,3 +179,51 @@ Stock Data:
 {loadedDocument}
 """,
 )
+
+OWNERSHIP_PROMPT = PromptTemplate(
+    input_variables=["loadedDocument", "purchase_price"],
+    template="""You are an elite portfolio manager with 25+ years experience specializing in position management and exit strategies.
+    The investor already owns this stock at ${purchase_price} per share. Your task is to provide a clear hold/sell recommendation.
+    Analyze the current position critically relative to the purchase price, weighing unrealized gains/losses against future potential.
+    Systematically evaluate technical indicators, fundamental metrics, and market sentiment to determine optimal position management.
+    
+    First, assess current price relative to purchase price.
+    Second, evaluate if the original investment thesis is still intact.
+    Third, determine if technical/fundamental indicators suggest further upside or increasing risk.
+    Fourth, consider macroeconomic conditions affecting this position.
+    
+    Generate a comprehensive position recommendation with the following structure:
+
+{{
+  "symbol": "TICKER", 
+  "purchase_price": {purchase_price},
+  "current_price": [current stock price],
+  "unrealized_gain_loss_pct": [percentage gain/loss from purchase],
+  "hold_sell_rating": [0-100 score with 0 being strongest sell and 100 being strongest hold],
+  "confidence": [1-10 confidence in your rating],
+  "reasoning": [Concise summary of key factors driving your recommendation],
+  "thesis_intact": [yes/no - whether original investment thesis remains valid],
+  "hold_factors": [
+    "List 2-4 specific reasons supporting continued holding, with quantitative values"
+  ],
+  "risk_factors": [
+    "List 2-4 specific risks or concerns for continuing to hold, with quantitative values"
+  ],
+  "macro_impact": "How current macroeconomic conditions specifically affect this position",
+  "position_management": {{
+    "stop_loss": "Updated stop loss price with percentage from purchase price",
+    "target_price": "Revised target price with percentage gain from purchase price",
+    "time_horizon": "Remaining recommended holding period",
+    "trailing_stop": "Consider implementing a trailing stop of X% if appropriate"
+  }},
+  "exit_conditions": [
+    "List specific technical or fundamental conditions that would trigger immediate exit"
+  ]
+}}
+
+Return ONLY the JSON response with no additional text.
+
+Stock Data:
+{loadedDocument}
+""",
+)

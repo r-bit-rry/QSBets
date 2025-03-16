@@ -7,7 +7,7 @@ import time
 import traceback
 from typing import Any
 
-from ml_serving.prompts import CONSULT_PROMPT_V7
+from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT
 from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
 from .mlx_model_server import get_model_server, MLXModelServer
 from langchain.schema.messages import HumanMessage, SystemMessage
@@ -159,7 +159,15 @@ def consult(filepath: str, metadata: dict = None, callback=None, max_retries: in
             callback(result)
         return result
 
-    formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
+    try:
+        price = metadata.get("price")
+        if price is not None and str(price).strip() and float(price) > 0:
+            formatted_prompt = OWNERSHIP_PROMPT.format(loadedDocument=document, purchase_price=price)
+        else:
+            formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
+    except (ValueError, TypeError):
+        formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
+
     messages = [
         SystemMessage(content=STOCK_SYSTEM_PROMPT),
         HumanMessage(content=formatted_prompt)
@@ -186,7 +194,7 @@ def consult(filepath: str, metadata: dict = None, callback=None, max_retries: in
             )
 
             # Wait for result with timeout
-            if not result_event.wait(timeout=240):
+            if not result_event.wait(timeout=300):
                 print(f"Request {request_id} timed out")
                 retry_count += 1
                 if retry_count <= max_retries:

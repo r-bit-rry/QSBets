@@ -23,6 +23,7 @@ from nasdaq import (
 )
 from analysis.ta import fetch_technical_indicators
 from analysis.ta_interpretation import (
+    interpret_cci,
     interpret_rsi,
     interpret_macd,
     interpret_moving_averages,
@@ -31,7 +32,9 @@ from analysis.ta_interpretation import (
     interpret_insider_activity,
     interpret_institutional_holdings,
     generate_preliminary_rating,
-    generate_entry_exit_strategy
+    generate_entry_exit_strategy,
+    interpret_stochastic,
+    interpret_support_resistance
 )
 
 class Stock:
@@ -104,27 +107,29 @@ class Stock:
         report["technical_indicators"] = technical_indicators
         timings["technical_indicators"] = time.time() - t_start
 
-        # NEW: Add technical indicators interpretation
         t_start = time.time()
         # Get current price from most recent quote
         historical_data = fetch_historical_quotes(self.symbol, 5)
         report["historical_quotes"] = self._optimize_historical_quotes(historical_data)
-
+        current_price = float(list(report["historical_quotes"].values())[0]["close"])
         # Pre-analyze the technical indicators and add interpretations
         technical_analysis = {
-            "rsi_analysis": interpret_rsi(technical_indicators.get('rsi')),
-            "macd_analysis": interpret_macd(technical_indicators.get('macd', {})),
-            "moving_averages_analysis": interpret_moving_averages(
-                float(list(report["historical_quotes"].values())[0]["close"]),
+            "rsi_analysis": interpret_rsi(technical_indicators.get('rsi')).get("description"),
+            "macd_analysis": interpret_macd(technical_indicators.get('macd', {})).get("description"),
+            "moving_averages_analysis": [ma.get("description") for ma in interpret_moving_averages(
+                current_price,
                 technical_indicators.get('sma_20'),
                 technical_indicators.get('sma_50'),
                 technical_indicators.get('sma_100')
-            ),
+            )],
             "bollinger_analysis": interpret_bollinger_bands(
-                float(list(report["historical_quotes"].values())[0]["close"]),
+                current_price,
                 technical_indicators.get('bollinger_bands', {})
-            ),
-            "adx_analysis": interpret_adx(technical_indicators.get('adx'))
+            ).get("description"),
+            "adx_analysis": interpret_adx(technical_indicators.get('adx')).get("description"),
+            "stochastic_analysis": interpret_stochastic(technical_indicators.get('stochastic_14_3_3')).get("description"),
+            "cci_analysis": interpret_cci(technical_indicators.get('cci')).get("description"),
+            "support_resistance_analysis": interpret_support_resistance(current_price, technical_indicators.get('support_resistance', {})).get("description"),
         }
         report["technical_analysis"] = technical_analysis
         timings["technical_analysis"] = time.time() - t_start

@@ -70,66 +70,6 @@ def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
                 dump_failed_text(formatted_prompt)
                 return {}
 
-def consult(filepath: str, max_retries: int = 3, base_delay: float = 2.0) -> dict:
-    """
-    Consult the MLX model with a stock data file for analysis using MLXPipeline
-    
-    Args:
-        filepath: Path to the JSON file containing stock data
-        prompt_version: Version of the prompt to use (3, 4, or 5)
-        model_path: Path to the local MLX model
-        max_retries: Maximum number of retry attempts
-        base_delay: Base delay in seconds for backoff
-        
-    Returns:
-        Parsed JSON response with stock analysis or empty dict on failure
-    """
-    retry_count = 0
-
-    try:
-        with open(filepath, 'r') as file:
-            document = file.read()
-    except Exception as e:
-        print(f"Error reading file {filepath}: {e}")
-        return {}
-
-    formatted_prompt = CONSULT_PROMPT_V6.format(loadedDocument=document)
-    messages = [
-        SystemMessage(content=STOCK_SYSTEM_PROMPT),
-        HumanMessage(content=formatted_prompt)
-    ]
-
-    while retry_count <= max_retries:
-        try:
-            print(f"Processing file: {filepath}")
-
-            response = chatmlx.invoke(messages)
-
-            # Extract and parse the JSON from the response
-            try:
-                json_str = extract_json_from_response(response.content)
-                parsed_json = json.loads(json_str)
-                print(f"Analysis completed successfully")
-                return parsed_json
-            except Exception as e:
-                print(f"Error parsing JSON response: {e}")
-                raise
-
-        except Exception as e:
-            retry_count += 1
-            if retry_count > max_retries:
-                print(f"Failed after {max_retries} retries: {e}")
-                dump_failed_text(formatted_prompt)
-                return {}
-
-            # Exponential backoff with jitter
-            delay = base_delay * (2 ** (retry_count - 1)) + random.uniform(0, 1)
-            traceback.print_exc()
-            print(f"Error: {e}. Retrying in {delay:.2f} seconds... (Attempt {retry_count}/{max_retries})")
-            time.sleep(delay)
-
-    return {}
-
 
 def extract_json_from_response(response: str) -> str:
     """

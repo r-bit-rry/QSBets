@@ -19,8 +19,8 @@ class TestMlxConsult(unittest.TestCase):
         """Setup test environment"""
         # Load environment variables
         load_dotenv()
-        self.test_file = os.path.join(os.path.dirname(__file__), "ACHR_2025-03-06.json")
-        
+        self.test_file = os.path.join(os.path.dirname(__file__), "MRVL_2025-03-16.yaml")
+
     def test_consult_basic(self):
         """Test that the consult function returns valid results"""
         result = consult(self.test_file)
@@ -48,21 +48,21 @@ def test_mlx_consult():
     """
     start_time = datetime.now()
     print(f"Starting MLX stock analysis test at: {start_time}")
-    
+
     # Get the path to the test file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    test_file = os.path.join(current_dir, "ACHR_2025-03-06.json")
-    
+    test_file = os.path.join(current_dir, "MRVL_2025-03-16.yaml")
+
     result = consult(test_file)
-    
+
     if result:
         print(f"Analysis result: {json.dumps(result, indent=2)}")
     else:
         print("Analysis failed to produce a valid result")
-    
+
     end_time = datetime.now()
     print(f"Test completed in: {end_time - start_time}")
-    
+
     return result
 
 

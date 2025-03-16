@@ -180,11 +180,7 @@ def fetch_technical_indicators(symbol, period=150, days=1):
     historical_data = fetch_historical_quotes(symbol, period)
     df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
     
-    # Return historical quotes as part of indicators to enable better charting
-    historical_dict = df.to_dict('index')
-    
     indicators = {
-        "historical_quotes": historical_dict,
         "rsi": [calculate_rsi(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
         "macd": [calculate_macd(df.iloc[:i]) for i in range(len(df) - days, len(df))],
         "sma_20": [calculate_sma(df.iloc[:i], 20) for i in range(len(df) - days, len(df))],

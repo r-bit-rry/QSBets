@@ -6,8 +6,8 @@ import os
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from nasdaq import fetch_nasdaq_data, fetch_stock_news, fetch_stock_press_releases
-from analysis.ta import fetch_technical_indicators
+from nasdaq import fetch_historical_quotes, fetch_nasdaq_data, fetch_stock_news, fetch_stock_press_releases
+from analysis.ta import fetch_technical_indicators, prepare_dataframe
 from cache.cache import cached, DAY_TTL
 
 # Configure page settings
@@ -344,6 +344,12 @@ def fetch_stock_data(symbol, period):
     press_df = pd.DataFrame([json.loads(item) for item in press_releases]) if press_releases else pd.DataFrame()
     
     indicators = fetch_technical_indicators(symbol, period, days=30)
+    historical_data = fetch_historical_quotes(symbol, period)
+    df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
+    
+    # Return historical quotes as part of indicators to enable better charting
+    historical_dict = df.to_dict('index')
+    indicators['historical_quotes'] = historical_dict
     
     return nasdaq_data, stock_data, news_df, press_df, indicators
 

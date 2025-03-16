@@ -78,24 +78,24 @@ class StockEventSystem:
         action = event_data.get("action")
         ticker = event_data.get("ticker")
         chat_id = event_data.get("chat_id")
-        price = event_data.get("price")
-        
+        purchase_price = event_data.get("purchase_price")
+
         if not ticker or not action:
             logger.error("Telegram command received without ticker or action")
             return
-        
+
         logger.info(f"Telegram {action} command received for {ticker}")
-        
+
         request_data = {
             "symbol": ticker,
             "requested_by": chat_id,
             "request_id": str(datetime.now().timestamp()),
             "action_type": action
         }
-        
-        if action == "own" and price:
-            request_data["purchase_price"] = price
-        
+
+        if action == "own" and purchase_price:
+            request_data["purchase_price"] = purchase_price
+
         stock_request_queue.queue.insert(0, request_data)
 
     def handle_analysis_complete(self, event_data: Dict[str, Any]) -> None:
@@ -204,7 +204,8 @@ class StockEventSystem:
                         "symbol": symbol,
                         "file_path": file_path,
                         "request_id": request.get("request_id"),
-                        "requested_by": request.get("requested_by")
+                        "requested_by": request.get("requested_by"),
+                        "purchase_price": request.get("purchase_price")
                     })
 
                     logger.info(f"Analysis for {symbol} completed and queued for consultation")
@@ -276,9 +277,9 @@ class StockEventSystem:
                             "file_path": file_path,
                             "request_id": analysis.get("request_id"),
                             "requested_by": analysis.get("requested_by"),
-                            "price": analysis.get("price")
+                            "purchase_price": analysis.get("purchase_price"),
                         }
-                        
+
                         # Start consultation in a separate thread to avoid blocking
                         threading.Thread(
                             target=lambda: consult(

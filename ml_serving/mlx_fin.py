@@ -160,9 +160,9 @@ def consult(filepath: str, metadata: dict = None, callback=None, max_retries: in
         return result
 
     try:
-        price = metadata.get("price")
-        if price is not None and str(price).strip() and float(price) > 0:
-            formatted_prompt = OWNERSHIP_PROMPT.format(loadedDocument=document, purchase_price=price)
+        purchase_price = metadata.get("purchase_price")
+        if purchase_price is not None and str(purchase_price).strip() and float(purchase_price) > 0:
+            formatted_prompt = OWNERSHIP_PROMPT.format(loadedDocument=document, purchase_price=purchase_price)
         else:
             formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
     except (ValueError, TypeError):

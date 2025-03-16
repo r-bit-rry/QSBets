@@ -118,8 +118,8 @@ def handle_telegram_update(update: dict):
         parts = text.split()
         if len(parts) >= 3:
             ticker = parts[1].upper()
-            price = parts[2]
-            confirmation_msg = f"Adding {ticker} (owned at {price}) to analysis queue with high priority"
+            purchase_price = parts[2]
+            confirmation_msg = f"Adding {ticker} (owned at {purchase_price}) to analysis queue with high priority"
 
             # Publish the event to the EventBus for priority analysis
             EventBus().publish(
@@ -127,12 +127,12 @@ def handle_telegram_update(update: dict):
                 {
                     "action": "own",
                     "ticker": ticker,
-                    "price": price,
+                    "purchase_price": purchase_price,
                     "chat_id": chat_id,
                 },
             )
         else:
-            confirmation_msg = "Invalid command format for /analyze_hold. Usage: /analyze_hold {ticker} {price}"
+            confirmation_msg = "Invalid command format for /analyze_hold. Usage: /analyze_hold {ticker} {purchase_price}"
 
     elif text.startswith("/analyze"):
         parts = text.split()
@@ -157,7 +157,7 @@ def handle_telegram_update(update: dict):
             )
 
     else:
-        confirmation_msg = "Command not recognized. Available commands: /analyze {ticker} or /analyze_hold {ticker} {price}"
+        confirmation_msg = "Command not recognized. Available commands: /analyze {ticker} or /analyze_hold {ticker} {purchase_price}"
 
     # Send confirmation message back to user
     send_text_via_telegram(confirmation_msg, chat_id)

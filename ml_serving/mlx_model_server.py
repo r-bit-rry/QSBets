@@ -9,6 +9,7 @@ from typing import Dict, Any, Callable, List, Optional
 import traceback
 from dataclasses import dataclass
 
+from ml_serving.model_base import ModelServer
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 
@@ -26,7 +27,7 @@ class MLXRequest:
     metadata: Dict[str, Any]
 
 
-class MLXModelServer:
+class MLXModelServer(ModelServer):
     """
     Thread-based MLX model server that processes multiple requests in parallel
     while keeping the model in memory and providing fresh contexts for each request.
@@ -50,12 +51,15 @@ class MLXModelServer:
         print(f"Loading MLX model from {model_path}...")
         self.llm = MLXPipeline.from_model_id(
             model_id=model_path,
-            pipeline_kwargs={"max_tokens": 4096, "verbose": False}
+            pipeline_kwargs={"max_tokens": 4096, "verbose": True}
         )
         print("MLX model loaded successfully")
         
         # Initialize lock for model access
         self.model_lock = threading.RLock()
+        
+        # Start the server
+        self.start()
     
     def start(self):
         """Start the model server with worker threads"""
@@ -106,7 +110,7 @@ class MLXModelServer:
             True if request was accepted, False if queue is full
         """
         if not self.running:
-            raise RuntimeError("MLX Model Server is not running")
+            self.start()
             
         try:
             self.request_queue.put_nowait(MLXRequest(
@@ -119,6 +123,38 @@ class MLXModelServer:
         except queue.Full:
             print(f"Request queue is full, rejecting request {request_id}")
             return False
+            
+    def process_sync(self, messages: List[Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Process a request synchronously
+        
+        Args:
+            messages: List of messages to process
+            metadata: Additional metadata
+            
+        Returns:
+            Dictionary with model response
+        """
+        request_id = f"sync_{time.time()}"
+        result_event = threading.Event()
+        result_container = {}
+        metadata = metadata or {}
+        
+        def on_complete(req_id, result):
+            result_container['response'] = result
+            result_event.set()
+            
+        self.submit_request(
+            request_id=request_id,
+            messages=messages,
+            callback=on_complete,
+            metadata=metadata
+        )
+        
+        if not result_event.wait(timeout=DEFAULT_TIMEOUT):
+            return {"error": "Request timed out", "metadata": metadata}
+            
+        return result_container['response']
             
     def _worker_loop(self):
         """Worker thread main loop"""
@@ -199,6 +235,5 @@ def get_model_server(model_path: str = None, num_workers: int = DEFAULT_NUM_WORK
     
     if _model_server is None and model_path:
         _model_server = MLXModelServer(model_path, num_workers)
-        _model_server.start()
     
     return _model_server

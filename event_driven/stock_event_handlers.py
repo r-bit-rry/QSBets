@@ -14,12 +14,12 @@ from queue import Queue
 import pandas as pd
 
 from event_driven.event_bus import EventBus, EventType
-from ml_serving.mlx_fin import MODEL_PATH, consult
+from ml_serving.config import initialize_model_server
+from ml_serving.mlx_fin import consult
 from analysis.stock import Stock
 from social.social import get_sentiment_df
 from nasdaq import fetch_nasdaq_data
 from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
-from ml_serving.mlx_model_server import get_model_server
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, 
@@ -308,7 +308,7 @@ stock_system = StockEventSystem()
 
 def initialize():
     """Initialize the stock event handlers system with all three loops"""
-    get_model_server(MODEL_PATH)
+    initialize_model_server()
 
     bus = EventBus()
     bus.start()

@@ -7,8 +7,9 @@ import yaml
 import numpy as np
 
 from analysis.macroeconomic import get_macroeconomic_context
+from ml_serving.ai_service import summarize
 from social.social import fetch_stocks_sentiment, fetch_stocks_social
-from summarize.ollama_summarize import ollama_summarize
+# from summarize.ollama_summarize import ollama_summarize
 from nasdaq import (
     fetch_historical_quotes,
     fetch_revenue_earnings,
@@ -215,7 +216,7 @@ class Stock:
             self._optimize_news_item(item)
             for item in filter(
                 lambda x: x.get("relevant_symbol", "") == self.symbol,
-                [ollama_summarize(text=d) for d in news],
+                [summarize(text=d) for d in news],
             )
         ]
         if summarized_news:
@@ -229,7 +230,7 @@ class Stock:
             self._optimize_news_item(item)
             for item in filter(
                 lambda x: x.get("relevant_symbol", "") == self.symbol,
-                [ollama_summarize(text=d) for d in press_releases],
+                [summarize(text=d) for d in press_releases],
             )
         ]
         if summarized_press:
@@ -380,7 +381,7 @@ class Stock:
                     # Use the human-readable label as the key
                     key = item["label"]
                     value = item["value"]
-                    
+
                     # Clean the value
                     if isinstance(value, str):
                         if "%" in value:
@@ -390,9 +391,9 @@ class Stock:
                         elif "$" in value:
                             # Handle dollar values without "million" suffix
                             value = float(value.replace("$", "").replace(",", ""))
-                    
+
                     optimized_ownership[key] = value
-            
+
             result["ownership_summary"] = optimized_ownership
 
         # Include only key transaction data

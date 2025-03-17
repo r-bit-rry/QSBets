@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 
 from ml_serving.model_server import extract_json_from_response
-from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
+from ml_serving.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.schema.messages import HumanMessage, SystemMessage

@@ -9,7 +9,6 @@ import numpy as np
 from analysis.macroeconomic import get_macroeconomic_context
 from ml_serving.ai_service import summarize
 from social.social import fetch_stocks_sentiment, fetch_stocks_social
-# from summarize.ollama_summarize import ollama_summarize
 from nasdaq import (
     fetch_historical_quotes,
     fetch_revenue_earnings,

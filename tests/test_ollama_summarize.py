@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the function to test
-from summarize.ollama_summarize import ollama_summarize
+from ml_serving.ollama_summarize import ollama_summarize
 
 def main():
     text = """

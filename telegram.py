@@ -3,7 +3,7 @@ import time
 
 import requests
 from event_driven.event_bus import EventBus, EventType
-from summarize.utils import dump_failed_text
+from ml_serving.utils import dump_failed_text
 
 
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")

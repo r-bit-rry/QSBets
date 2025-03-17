@@ -5,7 +5,7 @@ from ollama import Client
 
 from cache.cache import MONTH_TTL, cached
 from ml_serving.prompts import SUMMARIZE_PROMPT_V4, SYSTEM_PROMPT
-from summarize.utils import SummaryResponse, dump_failed_text
+from ml_serving.utils import SummaryResponse, dump_failed_text
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))

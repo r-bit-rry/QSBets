@@ -11,7 +11,7 @@ import traceback
 from typing import Any, Dict, Callable, Optional, Union
 
 from langchain.schema.messages import SystemMessage, HumanMessage
-from summarize.utils import SummaryResponse, dump_failed_text
+from ml_serving.utils import SummaryResponse, dump_failed_text
 from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT
 from ml_serving.model_server import get_model_server
 from ml_serving.model_base import extract_json_from_response

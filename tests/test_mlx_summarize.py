@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the function to test
-from summarize.mlx_summarize import mlx_summarize
+from tests.mlx_summarize import mlx_summarize
 
 def main():
     text = """

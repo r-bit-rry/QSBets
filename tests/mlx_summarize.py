@@ -1,19 +1,12 @@
-import traceback
 from typing import Any
 import os
-import json
-import random
-import time
 from dotenv import load_dotenv
 
-from cache.cache import MONTH_TTL, cached
-from ml_serving.prompts import CONSULT_PROMPT_V6
+from ml_serving.model_server import extract_json_from_response
 from summarize.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT, SummaryResponse, dump_failed_text
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.schema.messages import HumanMessage, SystemMessage
-from langchain.prompts import PromptTemplate
-from datetime import datetime  # Add this import
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -28,7 +21,6 @@ llm = MLXPipeline.from_model_id(
 )
 chatmlx = ChatMLX(llm=llm)
 
-# @cached(MONTH_TTL)
 def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
     """
     Summarize given text using the local MLX model with LangChain MLXPipeline.
@@ -70,38 +62,3 @@ def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
                 dump_failed_text(formatted_prompt)
                 return {}
 
-
-def extract_json_from_response(response: str) -> str:
-    """
-    Extract JSON content from the model response.
-
-    Args:
-        response: Raw text response from the MLX model
-
-    Returns:
-        Extracted JSON string
-    """
-    # Look for JSON content between { and } brackets
-    start_idx = response.find("{")
-    if start_idx == -1:
-        raise ValueError("No JSON object found in the response")
-
-    # Find the matching closing bracket
-    bracket_count = 0
-    for i in range(start_idx, len(response)):
-        if response[i] == "{":
-            bracket_count += 1
-        elif response[i] == "}":
-            bracket_count -= 1
-            if bracket_count == 0:
-                end_idx = i + 1
-                break
-    else:
-        raise ValueError("No valid JSON object found in the response")
-
-    # Extract and validate the JSON
-    json_str = response[start_idx:end_idx]
-    # Ensure it's valid JSON
-    json.loads(json_str)  # This will raise an exception if the JSON is invalid
-
-    return json_str

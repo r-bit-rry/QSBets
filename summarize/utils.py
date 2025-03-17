@@ -56,3 +56,24 @@ SUMMARIZE_PROMPT_V3 = (
     "6. Do not use placeholder text like 'TICKER1' in your response\n\n"
     "Text to analyze:\n{text}"
 )
+
+SUMMARIZE_PROMPT_V4 = (
+    "Extract basic financial information from the text below."
+    "\n\nProvide your response in this JSON format:"
+    "\n{{\n"
+    '  "date": "YYYY-MM-DD (use the date mentioned in the text)",\n'
+    '  "source": "publishing organization name",\n'
+    '  "summary": {{\n'
+    '    "TICKER": "Brief summary focusing on key numbers"\n'
+    "  }},\n"
+    '  "relevant_symbol": "TICKER"\n'
+    "}}\n\n"
+    "SIMPLIFIED INSTRUCTIONS:\n"
+    "1. Use ONLY ticker symbols explicitly mentioned in the text\n"
+    "2. If no ticker symbol is found, use the company name as is\n"
+    "3. Focus only on the most important metrics clearly stated in the text\n"
+    "4. Keep your summary to one short sentence\n"
+    "5. If multiple companies appear, just focus on the main one\n"
+    "6. If no financial metrics are present, simply describe what the text is about\n\n"
+    "Text to analyze:\n{text}"
+)

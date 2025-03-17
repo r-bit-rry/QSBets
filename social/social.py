@@ -258,18 +258,18 @@ def get_sentiment_df() -> pd.DataFrame:
     # Fetch both data sources
     sentiment_data = fetch_stocks_sentiment()
     social_data = fetch_stocks_social()
-    
+
     # Prepare sentiment data
     sentiment_entries = [
         {
             "symbol": symbol,
             "sentiment_rating": safe_convert_to_int(
-                data.get("sentiment_score_from_neg10_to_pos10")
+                data.get("sentiment_score[-10,10]")
             ),
         }
         for symbol, data in sentiment_data.items()
     ]
-    
+
     # Prepare social data
     social_entries = [
         {
@@ -284,17 +284,17 @@ def get_sentiment_df() -> pd.DataFrame:
         }
         for symbol, data in social_data.items()
     ]
-    
+
     # Convert to DataFrames
     sentiment_df = pd.DataFrame(sentiment_entries) if sentiment_entries else pd.DataFrame(columns=["symbol", "sentiment_rating"])
     social_df = pd.DataFrame(social_entries) if social_entries else pd.DataFrame(columns=[
         "symbol", "social_volume", "social_sentiment", "social_rank", 
         "social_rank_change", "sentiment_change", "social_volume_change", "social_volume_share"
     ])
-    
+
     # Merge both data sources using outer join to keep all tickers
     combined_df = pd.merge(sentiment_df, social_df, on="symbol", how="outer")
-    
+
     return combined_df
 
 def correlate_stocks_with_sentiment(df: pd.DataFrame) -> pd.DataFrame:

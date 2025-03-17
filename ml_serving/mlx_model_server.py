@@ -8,16 +8,14 @@ import time
 from typing import Dict, Any, Callable, List, Optional
 import traceback
 from dataclasses import dataclass
-from concurrent.futures import ThreadPoolExecutor
 
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
-from langchain.schema.messages import HumanMessage, SystemMessage
 
 # Constants
 DEFAULT_NUM_WORKERS = 3
-DEFAULT_TIMEOUT = 120  # seconds
-MAX_QUEUE_SIZE = 100
+DEFAULT_TIMEOUT = 240  # seconds
+MAX_QUEUE_SIZE = 200
 
 @dataclass
 class MLXRequest:
@@ -52,7 +50,7 @@ class MLXModelServer:
         print(f"Loading MLX model from {model_path}...")
         self.llm = MLXPipeline.from_model_id(
             model_id=model_path,
-            pipeline_kwargs={"max_tokens": 4096, "verbose": True}
+            pipeline_kwargs={"max_tokens": 4096, "verbose": False}
         )
         print("MLX model loaded successfully")
         

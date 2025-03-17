@@ -3,6 +3,8 @@ import time
 
 import requests
 from event_driven.event_bus import EventBus, EventType
+from summarize.utils import dump_failed_text
+
 
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -11,87 +13,140 @@ def format_investment_message(result: dict) -> str:
     """
     Format investment analysis result for Telegram with HTML formatting.
     Handles both string-based fields and complex nested structures.
+    Supports both standard analysis and hold position analysis schemas.
     """
-    if not result:
-        return "No analysis results available."
+    try:
+        if not result:
+            return "No analysis results available."
 
-    # Helper function to escape HTML characters in strings
-    def escape_html(text):
-        if isinstance(text, str):
-            return text.replace("<", "&lt;").replace(">", "&gt;")
-        return str(text)
+        # Helper function to escape HTML characters in strings
+        def escape_html(text):
+            if isinstance(text, str):
+                return text.replace("<", "&lt;").replace(">", "&gt;")
+            return str(text)
 
-    # Helper function to format lists
-    def format_list(items):
-        if not items:
-            return "None"
-        return "\n".join(f"• {escape_html(item)}" for item in items)
+        # Helper function to format lists
+        def format_list(items):
+            if not items:
+                return "None"
+            return "\n".join(f"• {escape_html(item)}" for item in items)
 
-    # Helper function to format nested dictionaries
-    def format_dict(data):
-        if isinstance(data, str):
-            return escape_html(data)
+        # Helper function to format nested dictionaries
+        def format_dict(data):
+            if isinstance(data, str):
+                return escape_html(data)
 
-        if not isinstance(data, dict):
-            return escape_html(data)
+            if not isinstance(data, dict):
+                return escape_html(data)
 
-        formatted = []
-        for key, value in data.items():
-            key_display = key.replace("_", " ").title()
+            formatted = []
+            for key, value in data.items():
+                key_display = key.replace("_", " ").title()
 
-            if isinstance(value, list):
-                formatted.append(f"<b>{key_display}:</b>\n{format_list(value)}")
-            else:
-                formatted.append(f"<b>{key_display}:</b> {escape_html(value)}")
+                if isinstance(value, list):
+                    formatted.append(f"<b>{key_display}:</b>\n{format_list(value)}")
+                else:
+                    formatted.append(f"<b>{key_display}:</b> {escape_html(value)}")
 
-        return "\n".join(formatted)
+            return "\n".join(formatted)
 
-    # Filter out internal fields that shouldn't be displayed
-    displayed_result = {k: v for k, v in result.items() 
-                       if k not in ['request_id', 'requested_by']}
+        # Filter out internal fields that shouldn't be displayed
+        displayed_result = {k: v for k, v in result.items() 
+                        if k not in ['request_id', 'requested_by']}
+        
+        # Start building message
+        message_parts = [
+            f"<b>Symbol:</b> {displayed_result.get('symbol', 'N/A')}",
+            f"<b>Rating:</b> {displayed_result.get('rating', 'N/A')}",
+            f"<b>Confidence:</b> {displayed_result.get('confidence', 'N/A')}",
+        ]
+        
+        # Detect if this is a hold position analysis by checking for specific fields
+        is_hold_analysis = 'purchase_price' in displayed_result
+        
+        # Add hold position specific information
+        if is_hold_analysis:
+            # Add purchase info
+            if "purchase_price" in displayed_result:
+                message_parts.insert(1, f"<b>Purchase Price:</b> {displayed_result.get('purchase_price', 'N/A')}")
+            
+            # Add current price if available
+            if "current_price" in displayed_result:
+                message_parts.insert(2, f"<b>Current Price:</b> {displayed_result.get('current_price', 'N/A')}")
+            
+            # Add unrealized gain/loss if available
+            if "unrealized_gain_loss_pct" in displayed_result:
+                message_parts.insert(3, f"<b>Unrealized Gain/Loss:</b> {displayed_result.get('unrealized_gain_loss_pct', 'N/A')}%")
+
+        # Add reasoning
+        if "reasoning" in displayed_result:
+            message_parts.append(f"<b>Reasoning:</b> {escape_html(displayed_result['reasoning'])}")
+
+        # Add factors based on schema type
+        if is_hold_analysis:
+            # Add hold factors if available
+            if "hold_factors" in displayed_result:
+                message_parts.append(
+                    f"<b>Hold Factors:</b>\n{format_list(displayed_result['hold_factors'])}"
+                )
+                
+            # Add risk factors if available
+            if "risk_factors" in displayed_result:
+                message_parts.append(
+                    f"<b>Risk Factors:</b>\n{format_list(displayed_result['risk_factors'])}"
+                )
+            
+            # Add exit conditions if available
+            if "exit_conditions" in displayed_result:
+                message_parts.append(
+                    f"<b>Exit Conditions:</b>\n{format_list(displayed_result['exit_conditions'])}"
+                )
+        else:
+            # Add bullish factors if available
+            if "bullish_factors" in displayed_result:
+                message_parts.append(
+                    f"<b>Bullish Factors:</b>\n{format_list(displayed_result['bullish_factors'])}"
+                )
+
+            # Add bearish factors if available
+            if "bearish_factors" in displayed_result:
+                message_parts.append(
+                    f"<b>Bearish Factors:</b>\n{format_list(displayed_result['bearish_factors'])}"
+                )
+
+        # Add macro impact if available
+        if "macro_impact" in displayed_result:
+            message_parts.append(
+                f"<b>Macro Impact:</b> {escape_html(displayed_result.get('macro_impact', ''))}"
+            )
+
+        # Add strategy sections based on schema type
+        if is_hold_analysis:
+            # Add exit strategy
+            if "exit_strategy" in displayed_result:
+                message_parts.append(
+                    f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
+                )
+        else:
+            # Add enter strategy
+            if "enter_strategy" in displayed_result:
+                message_parts.append(
+                    f"<b>Enter Strategy:</b>\n{format_dict(displayed_result['enter_strategy'])}"
+                )
+
+            # Add exit strategy
+            if "exit_strategy" in displayed_result:
+                message_parts.append(
+                    f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
+                )
+
+        return "\n\n".join(message_parts)
     
-    # Start building message
-    message_parts = [
-        f"<b>Symbol:</b> {displayed_result.get('symbol', 'N/A')}",
-        f"<b>Rating:</b> {displayed_result.get('rating', 'N/A')}",
-        f"<b>Confidence:</b> {displayed_result.get('confidence', 'N/A')}",
-    ]
-
-    # Add reasoning
-    if "reasoning" in displayed_result:
-        message_parts.append(f"<b>Reasoning:</b> {escape_html(displayed_result['reasoning'])}")
-
-    # Add bullish factors if available
-    if "bullish_factors" in displayed_result:
-        message_parts.append(
-            f"<b>Bullish Factors:</b>\n{format_list(displayed_result['bullish_factors'])}"
-        )
-
-    # Add bearish factors if available
-    if "bearish_factors" in displayed_result:
-        message_parts.append(
-            f"<b>Bearish Factors:</b>\n{format_list(displayed_result['bearish_factors'])}"
-        )
-
-    # Add macro impact if available
-    if "macro_impact" in displayed_result:
-        message_parts.append(
-            f"<b>Macro Impact:</b> {escape_html(displayed_result.get('macro_impact', ''))}"
-        )
-
-    # Add enter strategy
-    if "enter_strategy" in displayed_result:
-        message_parts.append(
-            f"<b>Enter Strategy:</b>\n{format_dict(displayed_result['enter_strategy'])}"
-        )
-
-    # Add exit strategy
-    if "exit_strategy" in displayed_result:
-        message_parts.append(
-            f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
-        )
-
-    return "\n\n".join(message_parts)
+    except Exception as e:
+        # Import needed only if there's an exception
+        error_message = f"Failed to format message: {str(e)}\nOriginal data: {str(result)}"
+        dump_failed_text(error_message)
+        return f"Error formatting analysis results. Details have been logged. Error: {str(e)}"
 
 def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):
     """
@@ -205,7 +260,7 @@ def listen_to_telegram():
             time.sleep(5)
             continue
 
-        time.sleep(10)
+        time.sleep(15)
 
 
 def test_send_text_via_telegram():

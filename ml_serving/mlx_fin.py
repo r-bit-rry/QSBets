@@ -15,7 +15,7 @@ from langchain.schema.messages import HumanMessage, SystemMessage
 MODEL_PATH = "/Users/roy.belio/Repos/QSBets/ml_serving/mlx_model"
 
 # Initialize the model server on module load
-model_server = get_model_server(MODEL_PATH, num_workers=4)
+model_server = get_model_server(MODEL_PATH, num_workers=3)
 
 # System prompt for stock analysis
 STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your analysis in the requested JSON format."

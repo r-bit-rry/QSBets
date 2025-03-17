@@ -640,7 +640,7 @@ def generate_entry_exit_strategy(stock_data):
         exit = {
             "profit_target": None,
             "stop_loss": None,
-            "time_horizon": "2-4 weeks",  # Default
+            "time_horizon": None,
             "exit_conditions": []
         }
         
@@ -680,9 +680,9 @@ def generate_entry_exit_strategy(stock_data):
             
         # Volume condition
         if avg_volume:
-            entry["technical_indicators"].append(f"Look for volume > {int(avg_volume/1000000)}M shares")
+            entry["technical_indicators"].append(f"Look for volume > {float(avg_volume/1000000)}M shares")
         
-        # NEW: Use support/resistance levels for entry/exit
+        # Use support/resistance levels for entry/exit
         support_resistance = indicators.get('support_resistance', {})
         supports = support_resistance.get('supports', [])
         resistances = support_resistance.get('resistances', [])
@@ -702,8 +702,7 @@ def generate_entry_exit_strategy(stock_data):
                 entry["technical_indicators"].append(f"Resistance level at ${closest_resistance:.2f}")
                 if exit.get("profit_target") is None:
                     exit["profit_target"] = f"${closest_resistance:.2f} (+{((closest_resistance/current_price)-1)*100:.1f}%)"
-            
-        # Exit conditions based on technical indicators
+
         if bb_upper:
             if not exit.get("profit_target"):
                 exit["profit_target"] = f"${bb_upper:.2f} (Bollinger Upper Band, +{((bb_upper/current_price)-1)*100:.1f}%)"
@@ -716,18 +715,15 @@ def generate_entry_exit_strategy(stock_data):
                 # If below SMA100, use BB lower
                 exit["stop_loss"] = f"${bb_lower:.2f} (-{((current_price/bb_lower)-1)*100:.1f}%)"
                 
-        # Exit conditions based on technical indicators
         exit["exit_conditions"].append("Close below SMA100")
         
         if rsi:
             exit["exit_conditions"].append("RSI > 70 (overbought)")
             
-        # NEW: Add stochastic-based exit condition
         stoch = indicators.get('stochastic_14_3_3', {})
         if stoch and stoch.get('stochastic_k') is not None:
             exit["exit_conditions"].append("Stochastic K line crosses below 80 from above")
 
-        # NEW: Add CCI-based exit condition
         cci = indicators.get('cci')
         if cci is not None and cci > 100:
             exit["exit_conditions"].append(f"CCI falls below 100 from {cci:.1f}")

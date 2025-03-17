@@ -140,11 +140,9 @@ Stock Data:
 
 CONSULT_PROMPT_V7 = PromptTemplate(
     input_variables=["loadedDocument"],
-    template="""You are an elite financial analyst with 25+ years on Wall Street specializing in trending stocks.
-    This analysis must identify subtle opportunities and risks that typical analysts overlook. Your assessment will be compared against top Wall Street professionals.
-    Before finalizing your rating, critically evaluate your own analysis for potential blind spots or cognitive biases.
-    First systematically analyze technical indicators, then fundamental metrics, then market sentiment, news and press, ensuring comprehensive coverage.
-    Analyze the provided data and generate a comprehensive investment thesis with the following structure:
+    template="""Analyze this stock as an expert financial analyst. Identify key opportunities and risks that typical analysis might miss.
+    Be thorough in your assessment, with special focus on actionable entry/exit strategies.
+    Provide a technical, data-driven investment thesis with the following structure:
 
 {{
   "symbol": "TICKER",
@@ -199,10 +197,9 @@ OWNERSHIP_PROMPT = PromptTemplate(
   "purchase_price": {purchase_price},
   "current_price": [current stock price],
   "unrealized_gain_loss_pct": [percentage gain/loss from purchase],
-  "hold_sell_rating": [0-100 score with 0 being strongest sell and 100 being strongest hold],
+  "rating": [0-100 score with 0 being strongest sell and 100 being strongest hold],
   "confidence": [1-10 confidence in your rating],
   "reasoning": [Concise summary of key factors driving your recommendation],
-  "thesis_intact": [yes/no - whether original investment thesis remains valid],
   "hold_factors": [
     "List 2-4 specific reasons supporting continued holding, with quantitative values"
   ],
@@ -210,7 +207,7 @@ OWNERSHIP_PROMPT = PromptTemplate(
     "List 2-4 specific risks or concerns for continuing to hold, with quantitative values"
   ],
   "macro_impact": "How current macroeconomic conditions specifically affect this position",
-  "position_management": {{
+  "exit_strategy": {{
     "stop_loss": "Updated stop loss price with percentage from purchase price",
     "target_price": "Revised target price with percentage gain from purchase price",
     "time_horizon": "Remaining recommended holding period",

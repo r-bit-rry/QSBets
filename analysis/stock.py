@@ -1,3 +1,4 @@
+from langchain.schema import Document
 from datetime import datetime
 from functools import partial
 import json
@@ -7,7 +8,7 @@ import yaml
 import numpy as np
 
 from analysis.macroeconomic import get_macroeconomic_context
-from ml_serving.ai_service import summarize
+from ml_serving.ai_service import map_reduce_summarize, summarize
 from social.social import fetch_stocks_sentiment, fetch_stocks_social
 from nasdaq import (
     fetch_historical_quotes,
@@ -211,31 +212,26 @@ class Stock:
         # News with optimized summaries - eliminate redundant fields
         t_start = time.time()
         news = fetch_stock_news(self.symbol)
-        summarized_news = [
-            self._optimize_news_item(item)
-            for item in filter(
-                lambda x: x.get("relevant_symbol", "") == self.symbol,
-                [summarize(text=d) for d in news],
-            )
-        ]
-        if summarized_news:
-            report["news"] = summarized_news
         timings["news"] = time.time() - t_start
 
         # Press releases with optimized summaries
         t_start = time.time()
         press_releases = fetch_stock_press_releases(self.symbol)
-        summarized_press = [
-            self._optimize_news_item(item)
-            for item in filter(
-                lambda x: x.get("relevant_symbol", "") == self.symbol,
-                [summarize(text=d) for d in press_releases],
-            )
-        ]
-        if summarized_press:
-            report["press_releases"] = summarized_press
         timings["press_releases"] = time.time() - t_start
+        # Aggregate articles based on titles
+        articles = self.aggregate_articles(news + press_releases)
 
+        t_start = time.time()
+        # Summarize the articles
+        if articles:
+            # Use async_summarize to handle CPU-bound tasks
+            summaries = map_reduce_summarize(
+                articles, f"{self.symbol} ({self.meta['name']})"
+            )
+            report["summaries"] = summaries
+        else:
+            report["summaries"] = []
+        timings["summaries"] = time.time() - t_start
         return report, timings, start_total
 
     def _save_report_and_print_timing(self, report, timings, start_total, format_type, file_extension, save_func):
@@ -446,6 +442,34 @@ class Stock:
                     result[date][key] = value
 
         return result
+
+    def aggregate_articles(self, articles):
+        """Aggregate articles based on their titles"""
+        documents = []
+        for item_json in articles:
+            try:
+                news_item = json.loads(item_json)
+                content = news_item.get("content", "")
+                if content:
+                    doc = Document(
+                        page_content=content,
+                        metadata={
+                            "title": news_item.get("title", ""),
+                            "url": news_item.get("url", ""),
+                            "created": news_item.get("created", "")
+                        }
+                    )
+                    documents.append(doc)
+            except json.JSONDecodeError as e:
+                print(f"Error parsing news item: {e}")
+
+        print(f"Converted {len(documents)} news items to documents")
+
+        if not documents:
+            print("No documents to summarize")
+            []
+
+        return documents
 
     def _optimize_news_item(self, item):
         """Remove redundant fields in news items and standardize format"""

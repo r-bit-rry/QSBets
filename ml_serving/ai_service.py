@@ -2,13 +2,18 @@
 Service layer for AI operations using the model server abstraction.
 Provides high-level methods for consulting and summarization.
 """
+import asyncio
 import json
 import os
 import random
 
 import time
 import traceback
-from typing import Any, Dict, Callable, Optional, Union
+from typing import Any, Dict, Callable, List, Optional, Union
+from langchain.schema import Document
+from langchain.prompts import PromptTemplate
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_core.output_parsers import StrOutputParser
 
 from langchain.schema.messages import SystemMessage, HumanMessage
 from ml_serving.utils import SummaryResponse, dump_failed_text
@@ -22,6 +27,106 @@ STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your anal
 # Default settings
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
+
+
+def map_reduce_summarize(
+    documents: List[Document],
+    stock: str,
+    callback: Callable = StrOutputParser(),
+    backend: str = "mlx",
+    chunk_size: int = 10000,
+)-> str:
+    """Implement map-reduce summarization using langchain"""
+    llm = get_model_server(backend=backend)
+
+    # Create text splitter for chunking
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=chunk_size,
+        chunk_overlap=100,
+        separators=["\n\n", "\n", " ", ""],
+        keep_separator=False,
+    )
+
+    # Split documents into chunks
+    splits = []
+    for doc in documents:
+        chunks = text_splitter.split_text(doc.page_content)
+        for chunk in chunks:
+            splits.append(Document(page_content=chunk, metadata=doc.metadata))
+
+    print(f"Split {len(documents)} documents into {len(splits)} chunks")
+
+    # Map: Summarize each chunk
+    map_template = """Summarize the following text for the stock {stock}:
+    {text}
+    
+    Summary:"""
+    map_prompt = PromptTemplate.from_template(map_template)
+
+    map_chain = map_prompt | llm | callback
+
+    # Reduce: Combine summaries
+    reduce_template = """You are given a set of summaries extracted from a longer text about stock news.
+    Create a concise, technical, comprehensive summary that combines all the important information about this stock {stock}.
+    Focus on quantitative data: revenue growth percentages, earnings, EPS, P/E ratios, margins, risks, and opportunities, year-over-year comparisons.
+    
+    SUMMARIES:
+    {summaries}
+    
+    COMPREHENSIVE SUMMARY:"""
+    reduce_prompt = PromptTemplate.from_template(reduce_template)
+
+    reduce_chain = reduce_prompt | llm | callback
+
+    # Execute map step
+    # print("Starting map step...")
+    # mapped_results = []
+
+    # for i, split in enumerate(splits):
+    #     print(f"Processing chunk {i+1}/{len(splits)}...")
+    #     result = map_chain.ainvoke({"text": split.page_content, "stock": stock})
+    #     mapped_results.append(result)
+    #     print(f"Chunk {i+1} processed")
+    print("Starting map step...")
+
+    async def process_chunks_async():
+        tasks = []
+        for i, split in enumerate(splits):
+            print(f"Queuing chunk {i+1}/{len(splits)}...")
+            # Create task for each chunk
+            task = asyncio.create_task(
+                map_chain.ainvoke({"text": split.page_content, "stock": stock})
+            )
+            tasks.append((i, task))
+
+        # Process results in order
+        mapped_results = []
+        for i, task in sorted(tasks):  # Maintain original order
+            try:
+                result = await task
+                print(f"Chunk {i+1}/{len(splits)} processed")
+                mapped_results.append(result)
+            except Exception as e:
+                print(f"Error processing chunk {i+1}: {e}")
+                # Fall back to sync processing for failed chunks
+                result = map_chain.invoke(
+                    {"text": splits[i].page_content, "stock": stock}
+                )
+                mapped_results.append(result)
+                print(f"Chunk {i+1} processed (sequential fallback)")
+
+        return mapped_results
+
+    # Run the async function
+    mapped_results = asyncio.run(process_chunks_async())
+
+    # Execute reduce step
+    print("Starting reduce step...")
+    result = reduce_chain.invoke(
+        {"summaries": "\n\n".join(mapped_results), "stock": stock}
+    )
+
+    return result
 
 
 def summarize(text: str, prompt_version: int = 3, callback: Callable = None, 

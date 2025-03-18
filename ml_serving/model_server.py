@@ -18,14 +18,14 @@ from langchain_community.chat_models.ollama import ChatOllama
 from azure.core.credentials import AzureKeyCredential
 
 # Constants
-DEFAULT_TIMEOUT = 300  # seconds
+DEFAULT_TIMEOUT = 600  # seconds
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
 
 
 class AzureAIServer(ModelServer):
     """Azure OpenAI Model Server implementation."""
-    
+
     def __init__(self, endpoint: str, api_key: str, deployment_name: str, parallelism: int = 1):
         """
         Initialize Azure OpenAI backend.
@@ -45,7 +45,10 @@ class AzureAIServer(ModelServer):
             top_p=0.95
         )
         self.request_queue = {}  # For tracking requests if needed
-        
+
+    def _llm_type(self) -> str:
+        return "azure"
+
     def submit_request(self, 
                       request_id: str,
                       messages: List[Any],
@@ -53,7 +56,7 @@ class AzureAIServer(ModelServer):
                       metadata: Dict[str, Any] = None) -> bool:
         """Submit a request to Azure OpenAI."""
         metadata = metadata or {}
-        
+
         # Create a thread to handle the async request
         def process_thread():
             try:
@@ -69,11 +72,11 @@ class AzureAIServer(ModelServer):
                     "error": str(e),
                     "metadata": metadata
                 })
-                
+
         thread = threading.Thread(target=process_thread)
         thread.start()
         return True
-        
+
     def process_sync(self, messages: List[Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a request synchronously using Azure OpenAI."""
         try:
@@ -88,7 +91,7 @@ class AzureAIServer(ModelServer):
 
 class OllamaServer(ModelServer):
     """Ollama Model Server implementation."""
-    
+
     def __init__(self, host: str = "http://127.0.0.1:11434", model_name: str = "plutus3", parallelism: int = 1):
         """
         Initialize Ollama backend.
@@ -103,7 +106,10 @@ class OllamaServer(ModelServer):
             model=model_name,
             temperature=0.05
         )
-        
+
+    def _llm_type(self) -> str:
+        return "ollama"
+
     def submit_request(self, 
                       request_id: str,
                       messages: List[Any],
@@ -111,14 +117,14 @@ class OllamaServer(ModelServer):
                       metadata: Dict[str, Any] = None) -> bool:
         """Submit a request to Ollama."""
         metadata = metadata or {}
-        
+
         # Create a thread to handle the async request
         def process_thread():
             try:
                 start_time = time.time()
                 response = self.model.invoke(messages)
                 proc_time = time.time() - start_time
-                
+
                 callback(request_id, {
                     "content": response.content,
                     "metadata": metadata,
@@ -130,11 +136,11 @@ class OllamaServer(ModelServer):
                     "error": str(e),
                     "metadata": metadata
                 })
-                
+
         thread = threading.Thread(target=process_thread)
         thread.start()
         return True
-        
+
     def process_sync(self, messages: List[Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """Process a request synchronously using Ollama."""
         try:

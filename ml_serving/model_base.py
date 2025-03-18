@@ -1,12 +1,16 @@
 """
 Base abstract class for model server implementations.
 """
-from abc import ABC, abstractmethod
-from typing import Dict, Any, Callable, List
+from abc import abstractmethod
+from typing import Dict, Any, Callable, List, Optional
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.language_models import LLM
 
-class ModelServer(ABC):
+
+class ModelServer(LLM):
     """Abstract base class for all model server implementations."""
-    
+
     @abstractmethod
     def submit_request(self, 
                       request_id: str,
@@ -26,7 +30,7 @@ class ModelServer(ABC):
             True if request was accepted, False otherwise
         """
         pass
-    
+
     @abstractmethod
     def process_sync(self, messages: List[Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
         """
@@ -40,6 +44,27 @@ class ModelServer(ABC):
             Dictionary with model response
         """
         pass
+
+    def _call(
+        self,
+        prompt: str,
+        stop: Optional[List[str]] = None,
+        run_manager: Optional[BaseCallbackHandler] = None,
+        **kwargs,
+    ) -> str:
+        messages = [
+            SystemMessage(content="You are a helpful assistant that summarizes text."),
+            HumanMessage(content=prompt),
+        ]
+
+        # Use synchronous processing
+        result = self.process_sync(messages)
+
+        if "error" in result:
+            raise RuntimeError(f"MModel error: {result['error']}")
+
+        return result.get("content", "")
+
 
 # Common utility functions
 def extract_json_from_response(response: str) -> str:

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 
 from event_driven.event_bus import EventBus, EventType
 from event_driven.stock_event_handlers import initialize as init_stock_system, stock_system
+from logger import get_logger
 
 def parse_args():
     """Parse command line arguments"""
@@ -19,8 +20,8 @@ def parse_args():
     parser.add_argument(
         '--top', 
         type=int, 
-        default=400,
-        help='Maximum number of top sentiment stocks to analyze initially (default: 10)'
+        default=4,
+        help='Maximum number of top sentiment stocks to analyze initially'
     )
     
     parser.add_argument(
@@ -53,7 +54,8 @@ def parse_args():
 
 def handle_shutdown(sig, frame):
     """Handle shutdown signals"""
-    print("\nShutting down gracefully...")
+    logger = get_logger("shutdown")
+    logger.info("Shutting down gracefully...")
     EventBus().stop()
     sys.exit(0)
 
@@ -82,7 +84,7 @@ def main():
                 # Exit parent process
                 sys.exit(0)
         except OSError as e:
-            print(f"Fork failed: {e}")
+            logger.error(f"Fork failed: {e}")
             sys.exit(1)
         
         # Detach from terminal
@@ -96,17 +98,22 @@ def main():
             except OSError:
                 pass
     
-    # Initialize the stock event system with all three loops
-    print("Initializing stock analysis system...")
+    # Initialize event bus
+    event_bus = EventBus()
+    event_bus.start()
+    event_bus.start_background_loop()
+    
+    logger = get_logger("main")
+    logger.info("Initializing stock analysis system...")
     init_stock_system()
     
     # Set the maximum number of top sentiment stocks to analyze
-    if hasattr(stock_system, '_max_sentiment_stocks'):
-        stock_system._max_sentiment_stocks = args.top
+    if hasattr(stock_system, 'sentiment_stocks_limit'):
+        stock_system.sentiment_stocks_limit = args.top
         
     # Set the rating threshold for high-quality recommendations
-    if hasattr(stock_system, '_rating_threshold'):
-        stock_system._rating_threshold = args.threshold
+    if hasattr(stock_system, 'quality_rating_threshold'):
+        stock_system.quality_rating_threshold = args.threshold
     
     # If a specific symbol was provided, request analysis immediately
     if args.analyze:
@@ -114,18 +121,17 @@ def main():
         for symbol in symbols:
             symbol = symbol.strip()
             if symbol:
-                print(f"Requesting immediate analysis for {symbol}...")
-                event_bus = EventBus()
+                logger.info(f"Requesting immediate analysis for {symbol}...")
                 event_bus.publish(EventType.STOCK_REQUEST, {
                     "symbol": symbol,
                     "request_id": f"cmdline_{time.time()}",
                 })
     
-    print(f"System running with:")
-    print(f"- Top {args.top} sentiment stocks analyzed hourly")
-    print(f"- Rating threshold for recommendations: {args.threshold}")
-    print(f"- Results stored in results/results_YYYY-MM-DD.jsonl")
-    print("Press Ctrl+C to exit.")
+    logger.info("System running with:")
+    logger.info(f"- Top {args.top} sentiment stocks analyzed periodically")
+    logger.info(f"- Rating threshold for recommendations: {args.threshold}")
+    logger.info("Results stored in results/results_YYYY-MM-DD.jsonl")
+    logger.info("Press Ctrl+C to exit.")
     
     # Keep main thread alive
     try:

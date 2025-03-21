@@ -3,6 +3,10 @@ Technical analysis interpretation module that converts raw indicators to insight
 This reduces the LLM's workload by pre-analyzing technical data.
 """
 
+from logger import get_logger
+
+logger = get_logger(__name__)
+
 def interpret_rsi(rsi):
     """Interpret RSI value and return standardized assessment"""
     if rsi is None:
@@ -523,6 +527,7 @@ def generate_preliminary_rating(stock_data):
             
         except (KeyError, IndexError) as e:
             explanations.append(f"Error analyzing technical indicators: {e}")
+            logger.error(f"Error analyzing technical indicators: {e}")
     
     # Fundamental factors (30 points max)
     
@@ -752,5 +757,5 @@ def generate_entry_exit_strategy(stock_data):
         
         return entry, exit
     except Exception as e:
-        print(f"Error generating strategies: {e}")
+        logger.error(f"Error generating strategies: {e}")
         return {}, {}

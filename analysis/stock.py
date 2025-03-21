@@ -6,6 +6,9 @@ import os
 import time
 import yaml
 import numpy as np
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 from analysis.macroeconomic import get_macroeconomic_context
 from ml_serving.ai_service import map_reduce_summarize, summarize
@@ -59,11 +62,11 @@ class Stock:
             # Filter for the specific symbol and convert to dict
             symbol_data = nasdaq_data[nasdaq_data["symbol"] == symbol]
             if symbol_data.empty:
-                print(f"Symbol {symbol} not found in nasdaq data")
+                logger.error(f"Symbol {symbol} not found in nasdaq data")
                 return {"symbol": symbol}
             return symbol_data.iloc[0]
         except Exception as e:
-            print(f"Error processing metadata for {symbol}: {e}")
+            logger.error(f"Error processing metadata for {symbol}: {e}")
             return {"symbol": symbol}
 
     def _generate_report(self):
@@ -256,10 +259,8 @@ class Stock:
         total_time = time.time() - start_total
         timings["total"] = total_time
 
-        # Print timing summary
-        format_label = f" ({format_type})" if format_type else ""
-        print(f"\n--- Performance Report for {self.symbol}{format_label} ---")
-        print(f"Total processing time: {total_time:.2f}s")
+        logger.info(f"--- Performance Report for {self.symbol}{format_type} ---")
+        logger.info(f"Total processing time: {total_time:.2f}s")
 
         # Sort timings by duration (descending)
         sorted_timings = sorted(
@@ -268,7 +269,7 @@ class Stock:
             reverse=True,
         )
         for name, duration in sorted_timings:
-            print(f"  {name}: {duration:.2f}s ({(duration/total_time)*100:.1f}%)")
+            logger.info(f"  {name}: {duration:.2f}s ({(duration/total_time)*100:.1f}%)")
 
         return file_path
 
@@ -461,12 +462,12 @@ class Stock:
                     )
                     documents.append(doc)
             except json.JSONDecodeError as e:
-                print(f"Error parsing news item: {e}")
+                logger.error(f"Error parsing news item: {e}")
 
-        print(f"Converted {len(documents)} news items to documents")
+        logger.debug(f"Converted {len(documents)} news items to documents")
 
         if not documents:
-            print("No documents to summarize")
+            logger.info("No documents to summarize")
             []
 
         return documents

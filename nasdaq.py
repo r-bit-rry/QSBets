@@ -44,7 +44,7 @@ def safe_parse_date(date_str: str, fmt: str) -> (datetime | None):
     try:
         return datetime.strptime(date_str, fmt)
     except Exception as e:
-        print(f"[safe_parse_date] Error parsing '{date_str}': {e}")
+        logger.error(f"[safe_parse_date] Error parsing '{date_str}': {e}")
         return None
 
 def get_full_url(url: str) -> str:
@@ -54,7 +54,7 @@ def safe_retrieve_page(url: str, format: str = "txt") -> str:
     try:
         return retrieve_nasdaq_page(url, format)
     except Exception as e:
-        print(f"[safe_retrieve_page] Error retrieving {url}: {e}")
+        logger.error(f"[safe_retrieve_page] Error retrieving {url}: {e}")
         return ""
 
 def clean_key_from_json(json_data: dict, key: str) -> str:
@@ -114,6 +114,8 @@ def refresh_nasdaq_cookie():
             cookie_str = "; ".join(f"{cookie['name']}={cookie['value']}" for cookie in cookies)
             NASDAQ_HEADERS["cookie"] = cookie_str
             last_cookie_refresh_time = datetime.now()
+        except Exception as e:
+            logger.error(f"Error refreshing Nasdaq cookie: {e}")
         finally:
             driver.quit()
 
@@ -600,7 +602,7 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
         try:
             json_data = fetch_nasdaq_api(earnings_url)
         except Exception as e:
-            print(f"[fetch_nasdaq_earning_calls] Error fetching earnings for {date_str}: {e}")
+            logger.error(f"[fetch_nasdaq_earning_calls] Error fetching earnings for {date_str}: {e}")
             continue
 
         data = json_data.get("data", {})
@@ -648,7 +650,7 @@ def fetch_nasdaq_earning_calls() -> pd.DataFrame:
         return df[["symbol", "next_earning_call", "days_to_earnings"]]
 
     except Exception as e:
-        print(f"[fetch_nasdaq_earning_calls] Error processing earnings data: {e}")
+        logger.error(f"[fetch_nasdaq_earning_calls] Error processing earnings data: {e}")
         # In case of errors, still try to return the minimal data
         if "callDate" in df.columns and "symbol" in df.columns:
             df["next_earning_call"] = df.apply(

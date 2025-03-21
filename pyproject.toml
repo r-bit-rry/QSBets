@@ -4,28 +4,18 @@ build-backend = "hatchling.build"
 
 [project]
 name = "QSBets"
-version = "0.9.0"
+version = "0.10.0"
 requires-python = ">=3.12, <3.14"
 description = "Event-driven stock analysis and investment recommendation system"
 dependencies = [
     "langchain-ollama",
     "langchain-azure-ai",
-    "langchain-chroma",
+    # "langchain-chroma",
     "langchain_community",
     "python-dotenv",
-    "ipykernel",
-    "transformers",
     "numpy",
     "pydantic",
-    "aiofiles",
-    "playwright",
-    "feedparser",
-    "python-dateutil",
-    "tiktoken",
     "pandas",
-    "tqdm",
-    "tabulate",
-    "pandas>=2.2.3",
     "selenium",
     "trafilatura",
     "azure-ai-inference",
@@ -34,10 +24,9 @@ dependencies = [
     "diskcache",
     "chromadb",
     "rich",
-    "praw",
+    "praw", # for redditor api but currently unused
     "ta-lib",
     "fredapi",
-    "mlx",
     "mlx-lm",
     "pyyaml",
     "streamlit",

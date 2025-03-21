@@ -4,7 +4,9 @@ import time
 import requests
 from event_driven.event_bus import EventBus, EventType
 from ml_serving.utils import dump_failed_text
+from logger import get_logger
 
+logger = get_logger("telegram")
 
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
@@ -157,7 +159,7 @@ def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     data = {"chat_id": chat_id, "text": content, "parse_mode": "HTML"}
     response = requests.post(url, data=data)
-    print(response.json())
+    logger.info(f"Telegram message sent. Response: {response.json()}")
 
 
 def handle_telegram_update(update: dict):
@@ -234,9 +236,9 @@ def listen_to_telegram():
 
         # If there are any updates, start from the next one
         offset = result[0]["update_id"] + 1 if result else None
-        print(f"Starting Telegram listener from update_id: {offset or 'latest'}")
+        logger.info(f"Starting Telegram listener from update_id: {offset or 'latest'}")
     except Exception as e:
-        print(f"Error initializing Telegram offset: {e}")
+        logger.error(f"Error initializing Telegram offset: {e}")
         offset = None
 
     while True:
@@ -255,7 +257,7 @@ def listen_to_telegram():
                 offset = update["update_id"] + 1
 
         except Exception as e:
-            print(f"Error in Telegram listener: {e}")
+            logger.error(f"Error in Telegram listener: {e}")
             # Wait slightly longer on error
             time.sleep(5)
             continue

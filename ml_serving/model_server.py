@@ -1,27 +1,24 @@
 """
 Model server implementations and factory for different AI backends.
 """
-import os
-import json
-import random
 import threading
 import time
-import traceback
 from typing import Dict, Any, Callable, List
 
-from langchain.schema.messages import SystemMessage, HumanMessage
-from ml_serving.model_base import ModelServer, extract_json_from_response
+from ml_serving.model_base import ModelServer
 
 # Import implementations (but not the MLXModelServer class directly to avoid circular imports)
 from langchain_azure_ai.chat_models import AzureAIChatCompletionsModel
 from langchain_community.chat_models.ollama import ChatOllama
 from azure.core.credentials import AzureKeyCredential
+from logger import get_logger
 
 # Constants
 DEFAULT_TIMEOUT = 600  # seconds
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
 
+logger = get_logger("model_server")
 
 class AzureAIServer(ModelServer):
     """Azure OpenAI Model Server implementation."""
@@ -67,7 +64,7 @@ class AzureAIServer(ModelServer):
                     "processing_time": 0  # Azure doesn't provide this directly
                 })
             except Exception as e:
-                print(f"Error in Azure AI request {request_id}: {e}")
+                logger.error(f"Error in Azure AI request {request_id}: {e}")
                 callback(request_id, {
                     "error": str(e),
                     "metadata": metadata
@@ -131,7 +128,7 @@ class OllamaServer(ModelServer):
                     "processing_time": proc_time
                 })
             except Exception as e:
-                print(f"Error in Ollama request {request_id}: {e}")
+                logger.error(f"Error in Ollama request {request_id}: {e}")
                 callback(request_id, {
                     "error": str(e),
                     "metadata": metadata

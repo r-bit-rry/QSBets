@@ -10,6 +10,10 @@ import os
 from langchain_azure_ai.chat_models import AzureAIChatCompletionsModel
 
 from ml_serving.prompts import CONSULT_PROMPT_V6
+from logger import get_logger
+
+logger = get_logger("deepseek_lc")
+
 # Defining model's endpoint and Azure credentials
 DS_Model = os.getenv("AZURE_FOUNDRY_DEEPSEEK")
 DS_Region = "eastus"
@@ -35,7 +39,7 @@ def get_model():
                 model_kwargs={"stream_options": {"include_usage": True}},
             )
         except Exception as e:
-            print(f"Error initializing model: {e}")
+            logger.error(f"Error initializing model: {e}")
             raise
 
     return _model_instance
@@ -54,7 +58,7 @@ def decode_response(content: str):
     try:
         parsed_json = json.loads(json_str)
     except json.JSONDecodeError as e:
-        print("Error decoding JSON:", e)
+        logger.error("Error decoding JSON: %s", e)
         parsed_json = {}
     return parsed_json
 
@@ -81,7 +85,7 @@ def consult(filepath: str, max_retries: int = 5, base_delay: float = 2.0):
             response = chain.stream({"loadedDocument": document})
             content = []
             for chunk in response:
-                print(chunk.content, end="", flush=True)
+                logger.debug(chunk.content)
                 content.append(chunk.content)
 
             return decode_response("".join(content))
@@ -91,18 +95,17 @@ def consult(filepath: str, max_retries: int = 5, base_delay: float = 2.0):
             if "too many requests" in error_message or "timeout" in error_message:
                 retry_count += 1
                 if retry_count > max_retries:
-                    print(f"Failed after {max_retries} retries: {e}")
+                    logger.error(f"Failed after {max_retries} retries: {e}")
                     return {}
 
                 # Calculate exponential backoff with jitter
                 delay = base_delay * (2 ** (retry_count - 1)) + random.uniform(0, 1)
-                print(
+                logger.warning(
                     f"Rate limited or timeout. Retrying in {delay:.2f} seconds... (Attempt {retry_count}/{max_retries})"
                 )
                 time.sleep(delay)
             else:
-                # For other errors, don't retry
-                print(f"Error: {e}")
+                logger.error(f"Error: {e}")
                 return {}
 
 
@@ -111,16 +114,16 @@ def analyze_folder(folder: str):
     for filename in os.listdir(folder):
         if filename.endswith(f"{today_str}.json"):
             filepath = os.path.join(folder, filename)
-            print(f"Processing file: {filepath}")
+            logger.info(f"Processing file: {filepath}")
             result = consult(filepath)
-            print(f"Result: {result}")
+            logger.info(f"Result: {result}")
 
 def main():
     start_time = datetime.now()
     result = consult("./analysis_docs/SEDG_2025-02-27.json")
-    print(f"Analysis result: {json.dumps(result, indent=2)}")
+    logger.info(f"Analysis result: {json.dumps(result, indent=2)}")
     end_time = datetime.now()
-    print(f"Duration: {end_time - start_time}")
+    logger.info(f"Duration: {end_time - start_time}")
 
 
 if __name__ == "__main__":

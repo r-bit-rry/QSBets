@@ -3,6 +3,9 @@ import json
 import functools
 
 import chromadb
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 class ChromaDBSaver:
     def __init__(self, collection_name: str, persist_directory: str = "chroma_db"):
@@ -16,7 +19,7 @@ class ChromaDBSaver:
         try:
             results = self.collection.get()
         except Exception as e:
-            print(f"[DEBUG] Unable to retrieve documents for cleanup: {e}")
+            logger.error(f"Unable to retrieve documents for cleanup: {e}")
             return
 
         now = datetime.now()
@@ -28,13 +31,13 @@ class ChromaDBSaver:
                     if expires_at < now:
                         expired_ids.append(doc_id)
                 except Exception as e:
-                    print(f"[DEBUG] Error parsing expiration for doc {doc_id}: {e}")
+                    logger.error(f"Error parsing expiration for doc {doc_id}: {e}")
         if expired_ids:
             try:
                 self.collection.delete(ids=expired_ids)
-                print(f"[DEBUG] Cleaned up {len(expired_ids)} expired documents.")
+                logger.debug(f"Cleaned up {len(expired_ids)} expired documents.")
             except Exception as e:
-                print(f"[DEBUG] Error deleting expired documents: {e}")
+                logger.error(f"Error deleting expired documents: {e}")
 
     def add_document(self, document: dict, doc_id: str, expires_at: datetime = None):
         # Optionally add an expiration timestamp into metadata.
@@ -46,7 +49,7 @@ class ChromaDBSaver:
             metadatas=[metadata],
             ids=[doc_id]
         )
-        print(f"[DEBUG] Document inserted with id {doc_id} into collection {self.collection.name}")
+        logger.debug(f"Document inserted with id {doc_id} into collection {self.collection.name}")
 
 def chromadb_insert(collection_name: str, ttl_seconds: int = 604800):
     """

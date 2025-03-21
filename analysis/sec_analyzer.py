@@ -6,6 +6,9 @@ from typing import List
 import trafilatura
 import chromadb
 from ollama import Client
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # Initialize a local Ollama client for embedding and query synthesis.
 ollama_client = Client(
@@ -60,7 +63,7 @@ class SECAnalyzer:
             ids=document_ids,
             embeddings=embeddings
         )
-        print(f"[DEBUG] Processed filing and stored {len(documents)} chunks in collection '{collection_name}'.")
+        logger.debug(f"Processed filing and stored {len(documents)} chunks in collection '{collection_name}'.")
 
     def query_filing(self, symbol: str, filing_type: str, query: str, top_k: int = 5) -> str:
         """
@@ -132,8 +135,8 @@ if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))
     html_file_path = os.path.join(current_dir, "sec_filings", "tclg-10q.html")
 
-    print(f"[DEBUG] Loading filing from {html_file_path}")
+    logger.debug(f"Loading filing from {html_file_path}")
 
     # Process the filing using trafilatura for text extraction.
     analyzer.process_filing(html_file_path, symbol="TCLG", filing_type="10q")
-    print(analyzer.query_filing("TCLG", "10q", "What are the key financial figures reported for the recent quarter?"))
+    logger.debug(analyzer.query_filing("TCLG", "10q", "What are the key financial figures reported for the recent quarter?"))

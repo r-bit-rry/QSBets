@@ -12,12 +12,15 @@ from dataclasses import dataclass
 from ml_serving.model_base import ModelServer
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
+from logger import get_logger
 
 # Constants
 DEFAULT_NUM_WORKERS = 3
 DEFAULT_TIMEOUT = 600  # seconds
 MAX_QUEUE_SIZE = 200
-QWQ_KWARGS = {"max_tokens": 64000, "verbose": True, "temp": 0.7, "top_p": 0.95, "min_p":0.00, "top_k": 40, "repetition_penalty": 1.0, "repetition_context_size": 20}
+QWQ_KWARGS = {"max_tokens": 64000, "verbose": True, "temp": 0.6, "top_p": 0.95, "min_p":0.00, "top_k": 40, "repetition_penalty": 1.0, "repetition_context_size": 20}
+
+logger = get_logger(__name__)
 
 @dataclass
 class MLXRequest:
@@ -57,12 +60,11 @@ class MLXModelServer(ModelServer):
         self.workers = []
 
         # Load model once (shared across workers)
-        print(f"Loading MLX model from {model_path}...")
+        logger.info(f"Loading MLX model from {model_path}...")
         self.llm = MLXPipeline.from_model_id(
-            model_id=model_path,
-            pipeline_kwargs={"max_tokens": 4096, "verbose": True}
+            model_id=model_path, pipeline_kwargs={"max_tokens": 4096, "verbose": True}
         )
-        print("MLX model loaded successfully")
+        logger.info("MLX model loaded successfully")
 
         # Initialize lock for model access
         self.model_lock = threading.RLock()
@@ -91,7 +93,7 @@ class MLXModelServer(ModelServer):
             worker.start()
             self.workers.append(worker)
 
-        print(f"MLX Model Server started with {self.num_workers} workers")
+        logger.info(f"MLX Model Server started with {self.num_workers} workers")
 
     def stop(self):
         """Stop the model server and all worker threads"""
@@ -102,7 +104,7 @@ class MLXModelServer(ModelServer):
             if worker.is_alive():
                 worker.join(timeout=1.0)
 
-        print("MLX Model Server stopped")
+        logger.info("MLX Model Server stopped")
 
     def submit_request(self, 
                       request_id: str,
@@ -133,7 +135,7 @@ class MLXModelServer(ModelServer):
             ))
             return True
         except queue.Full:
-            print(f"Request queue is full, rejecting request {request_id}")
+            logger.error(f"Request queue is full, rejecting request {request_id}")
             return False
 
     def process_sync(self, messages: List[Any], metadata: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -171,7 +173,7 @@ class MLXModelServer(ModelServer):
     def _worker_loop(self):
         """Worker thread main loop"""
         thread_name = threading.current_thread().name
-        print(f"{thread_name} started")
+        logger.info(f"{thread_name} started")
 
         while self.running:
             try:
@@ -182,7 +184,7 @@ class MLXModelServer(ModelServer):
                     continue
 
                 start_time = time.time()
-                print(f"{thread_name} processing request {request.id}")
+                logger.info(f"{thread_name} processing request {request.id}")
 
                 try:
                     # Create a new ChatMLX instance for this request to ensure a fresh context
@@ -194,7 +196,7 @@ class MLXModelServer(ModelServer):
 
                     # Calculate processing time
                     proc_time = time.time() - start_time
-                    print(f"{thread_name} completed request {request.id} in {proc_time:.2f}s")
+                    logger.info(f"{thread_name} completed request {request.id} in {proc_time:.2f}s")
 
                     # Call the callback with the result
                     if request.callback:
@@ -205,7 +207,7 @@ class MLXModelServer(ModelServer):
                         })
 
                 except Exception as e:
-                    print(f"{thread_name} error processing request {request.id}: {str(e)}")
+                    logger.error(f"{thread_name} error processing request {request.id}: {str(e)}")
                     traceback.print_exc()
                     # Call the callback with the error
                     if request.callback:
@@ -217,10 +219,10 @@ class MLXModelServer(ModelServer):
                     self.request_queue.task_done()
 
             except Exception as e:
-                print(f"Unexpected error in {thread_name}: {str(e)}")
+                logger.error(f"Unexpected error in {thread_name}: {str(e)}")
                 traceback.print_exc()
 
-        print(f"{thread_name} stopped")
+        logger.info(f"{thread_name} stopped")
 
     def get_queue_size(self) -> int:
         """Get the current size of the request queue"""

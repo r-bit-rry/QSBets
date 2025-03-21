@@ -16,12 +16,14 @@ import threading
 from threading import Event
 import time
 from chromadb_integration import ChromaDBSaver
+from logger import get_logger
 
 console = Console(record=True)
 install()
 
 logging.config.dictConfig({"version": 1, "disable_existing_loggers": True})
 
+logger = get_logger(__name__)
 
 r_FinInvMarket = [
     "wallstreetbets",
@@ -129,7 +131,7 @@ class collect:
                 "removed": removed,
             }
             self.redditor_saver.add_document(row, redditor_id)
-            print(f"[DEBUG] Inserted redditor {redditor_id}")
+            logger.debug(f"Inserted redditor {redditor_id}")
             return redditor_id, True
         else:
             # Return id without insertion
@@ -286,7 +288,7 @@ class collect:
         }
 
         self.submission_saver.add_document(row, submission_id)
-        print(f"[DEBUG] Inserted submission {submission_id}")
+        logger.debug(f"Inserted submission {submission_id}")
         submission_inserted = True
 
         return submission_id, submission_inserted, redditor_inserted
@@ -360,11 +362,11 @@ class collect:
                 }
 
                 self.comment_saver.add_document(row, comment_id)
-                print(f"[DEBUG] Inserted comment {comment_id}")
+                logger.debug(f"Inserted comment {comment_id}")
                 comment_inserted_count += 1
 
             except Exception as error:
-                console.log(f"t1_{comment.id}: [bold red]{error}[/]")
+                logger.error(f"Error processing comment {comment.id}: {error}")
                 console.print_exception()
                 console.save_html(
                     os.path.join(self.error_log_path, f"t1_{comment.id}.html")
@@ -398,9 +400,9 @@ class collect:
             total_submission_inserted_count = 0
             total_redditor_inserted_count = 0
             for subreddit in subreddits:
-                console.print(f"[bold]subreddit: {subreddit}", justify="center")
+                logger.info(f"Processing subreddit: {subreddit}")
                 for sort_type in sort_types:
-                    console.print(sort_type, justify="center")
+                    logger.info(f"Sort type: {sort_type}")
                     r_ = self.reddit.subreddit(subreddit)
                     for submission in getattr(r_, sort_type)(limit=limit):
                         try:
@@ -418,7 +420,7 @@ class collect:
                                 total_redditor_inserted_count += 1
 
                         except Exception as error:
-                            console.log(f"t3_{submission_id}: [bold red]{error}[/]")
+                            logger.error(f"Error processing submission {submission_id}: {error}")
                             console.print_exception()
                             console.save_html(
                                 os.path.join(
@@ -427,8 +429,8 @@ class collect:
                             )
                             continue
 
-        return console.print(
-            f"[bold green]{total_submission_inserted_count} submission and {total_redditor_inserted_count} user data collected from subreddit(s) {subreddits}"
+        return logger.info(
+            f"{total_submission_inserted_count} submissions and {total_redditor_inserted_count} users collected from subreddit(s) {subreddits}"
         )
 
     def subreddit_comment(
@@ -459,9 +461,9 @@ class collect:
             total_redditor_inserted_count = 0
 
             for subreddit in subreddits:
-                console.print(f"[bold]subreddit: {subreddit}", justify="center")
+                logger.info(f"Processing subreddit: {subreddit}")
                 for sort_type in sort_types:
-                    console.print(sort_type, justify="center")
+                    logger.info(f"Sort type: {sort_type}")
 
                     r_ = self.reddit.subreddit(subreddit)
 
@@ -497,7 +499,7 @@ class collect:
                                 total_redditor_inserted_count += redditor_inserted_count
 
                         except Exception as error:
-                            console.log(f"t3_{submission.id}: [bold red]{error}[/]")
+                            logger.error(f"Error processing submission {submission.id}: {error}")
                             console.print_exception()
                             console.save_html(
                                 os.path.join(
@@ -506,8 +508,8 @@ class collect:
                             )
                             continue
 
-        return console.print(
-            f"[bold green]{total_comment_inserted_count} comment and {total_redditor_inserted_count} user data collected from subreddit(s) {subreddits}"
+        return logger.info(
+            f"{total_comment_inserted_count} comments and {total_redditor_inserted_count} users collected from subreddit(s) {subreddits}"
         )
 
     def subreddit_submission_and_comment(
@@ -539,9 +541,9 @@ class collect:
             total_redditor_inserted_count = 0
 
             for subreddit in subreddits:
-                console.print(f"[bold]subreddit: {subreddit}", justify="center")
+                logger.info(f"Processing subreddit: {subreddit}")
                 for sort_type in sort_types:
-                    console.print(sort_type, justify="center")
+                    logger.info(f"Sort type: {sort_type}")
                     r_ = self.reddit.subreddit(subreddit)
                     for submission in getattr(r_, sort_type)(limit=limit):
                         try:
@@ -590,7 +592,7 @@ class collect:
                                 )
 
                         except Exception as error:
-                            console.log(f"t3_{submission.id}: [bold red]{error}[/]")
+                            logger.error(f"Error processing submission {submission.id}: {error}")
                             console.print_exception()
                             console.save_html(
                                 os.path.join(
@@ -599,8 +601,8 @@ class collect:
                             )
                             continue
 
-        return console.print(
-            f"[bold green]{total_submission_inserted_count} submission, {total_comment_inserted_count} comment, and {total_redditor_inserted_count} user data collected from subreddit(s) {subreddits}"
+        return logger.info(
+            f"{total_submission_inserted_count} submissions, {total_comment_inserted_count} comments, and {total_redditor_inserted_count} users collected from subreddit(s) {subreddits}"
         )
 
     def submission_from_user(
@@ -626,10 +628,10 @@ class collect:
         ):
             total_submission_inserted_count = 0
             for user_name in user_names:
-                console.print(f"[bold]user: {user_name}", justify="center")
+                logger.info(f"Processing user: {user_name}")
                 redditor = self.reddit.redditor(user_name)
                 for sort_type in sort_types:
-                    console.print(sort_type, justify="center")
+                    logger.info(f"Sort type: {sort_type}")
                     try:
                         submissions = [
                             submission
@@ -652,7 +654,7 @@ class collect:
                                         submission_inserted
                                     )
                             except Exception as error:
-                                console.log(f"t3_{submission_id}: [bold red]{error}[/]")
+                                logger.error(f"Error processing submission {submission_id}: {error}")
                                 console.print_exception()
                                 console.save_html(
                                     os.path.join(
@@ -662,14 +664,14 @@ class collect:
                                 continue
 
                     except Exception as error:
-                        console.log(f"user_{user_name}: [bold red]{error}[/]")
+                        logger.error(f"Error processing user {user_name}: {error}")
                         console.print_exception()
                         console.save_html(
                             os.path.join(self.error_log_path, f"user_{user_name}.html")
                         )
                         continue
-        return console.print(
-            f"[bold green]{total_submission_inserted_count} submission data collected from {len(user_names)} user(s)"
+        return logger.info(
+            f"{total_submission_inserted_count} submission data collected from {len(user_names)} user(s)"
         )
 
     def comment_from_user(
@@ -694,10 +696,10 @@ class collect:
         ):
             total_comment_inserted_count = 0
             for user_name in user_names:
-                console.print(f"[bold]user: {user_name}", justify="center")
+                logger.info(f"Processing user: {user_name}")
                 redditor = self.reddit.redditor(user_name)
                 for sort_type in sort_types:
-                    console.print(sort_type, justify="center")
+                    logger.info(f"Sort type: {sort_type}")
                     try:
                         comments = [
                             comment
@@ -710,15 +712,15 @@ class collect:
                         )[0]
                         total_comment_inserted_count += comment_inserted_count
                     except Exception as error:
-                        console.log(f"user_{user_name}: [bold red]{error}[/]")
+                        logger.error(f"Error processing user {user_name}: {error}")
                         console.print_exception()
                         console.save_html(
                             os.path.join(self.error_log_path, f"user_{user_name}.html")
                         )
                         continue
 
-        return console.print(
-            f"[bold green]{total_comment_inserted_count} comment data collected from {len(user_names)} user(s)"
+        return logger.info(
+            f"{total_comment_inserted_count} comment data collected from {len(user_names)} user(s)"
         )
 
     def submission_by_keyword(
@@ -753,7 +755,7 @@ class collect:
         ):
             total_submission_inserted_count = 0
             for subreddit in subreddits:
-                console.print(f"[bold]subreddit: {subreddit}", justify="center")
+                logger.info(f"Processing subreddit: {subreddit}")
                 r_ = self.reddit.subreddit(subreddit)
                 for submission in r_.search(query, sort="relevance", limit=limit):
                     try:
@@ -769,7 +771,7 @@ class collect:
                             total_submission_inserted_count += 1
 
                     except Exception as error:
-                        console.log(f"t3_{submission_id}: [bold red]{error}[/]")
+                        logger.error(f"Error processing submission {submission_id}: {error}")
                         console.print_exception()
                         console.save_html(
                             os.path.join(
@@ -778,8 +780,8 @@ class collect:
                         )
                         continue
 
-        return console.print(
-            f"[bold green]{total_submission_inserted_count} submission data collected from subreddit(s) {subreddits} with query='{query}'"
+        return logger.info(
+            f"{total_submission_inserted_count} submissions collected from subreddit(s) {subreddits} with query='{query}'"
         )
 
     def comment_from_submission(
@@ -803,7 +805,7 @@ class collect:
         ):
             total_comment_inserted_count = 0
             for submission_id in submission_ids:
-                console.print(f"[bold]submission: {submission_id}", justify="center")
+                logger.info(f"Processing submission: {submission_id}")
                 submission = self.reddit.submission(submission_id)
                 try:
                     # Check if comments of submission were crawled
@@ -827,14 +829,14 @@ class collect:
                         )[0]
                         total_comment_inserted_count += comment_inserted_count
                 except Exception as error:
-                    console.log(f"t3_{submission.id}: [bold red]{error}[/]")
+                    logger.error(f"Error processing submission {submission.id}: {error}")
                     console.print_exception()
                     console.save_html(
                         os.path.join(self.error_log_path, f"t3_{submission.id}.html")
                     )
                     continue
-        return console.print(
-            f"[bold green]{total_comment_inserted_count} comment data collected from {len(submission_ids)} submission(s)"
+        return logger.info(
+            f"{total_comment_inserted_count} comments collected from {len(submission_ids)} submission(s)"
         )
 
     # def user_from_submission(self):
@@ -1084,12 +1086,12 @@ def get_reddit_client() -> praw.Reddit:
         )
 
         if submission.selftext is not None:
-            console.log("[bold yellow]Using existing Reddit credentials.")
-            console.log("[bold green]Connected to Reddit successfully.")
+            logger.info("Using existing Reddit credentials.")
+            logger.info("Connected to Reddit successfully.")
         return reddit_client
 
     except Exception as e:
-        console.log(f"[bold red]Failed to connect to Reddit.[/] Error: {str(e)}")
+        logger.error(f"Failed to connect to Reddit. Error: {str(e)}")
         return None
 
 
@@ -1121,11 +1123,10 @@ def query_and_debug(collection_name: str, query_filter: str):
 
 
 def main():
-    print("Available collections: redditor, submission, comment")
+    logger.info("Available collections: redditor, submission, comment")
     collection = input("Enter collection to query: ").strip()
 
-    print("\nProvide a basic query as a field and value. For example:")
-    print("  Value: Tesla\n")
+    logger.info("Provide a basic query as a field and value.")
     value = input("Enter value to match: ").strip()
 
     query_and_debug(collection, value)

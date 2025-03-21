@@ -4,6 +4,9 @@ from functools import wraps
 import hashlib
 from typing import Any, Callable, Optional, Union
 from diskcache import Cache
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 HOURS2_TTL = 7200  # 2 hours
 DAY_TTL = 86400  # 1 day
@@ -65,7 +68,7 @@ def cached(ttl_seconds: int = 1800, cache_key: Optional[str] = None) -> Callable
                     return result
                     
             except Exception as e:
-                print(f"Cache error in {func.__name__}: {str(e)}")
+                logger.error(f"Cache error in {func.__name__}: {str(e)}")
                 # On cache error, execute function without caching
                 return func(*args, **kwargs)
             
@@ -87,7 +90,7 @@ def clear_cache(cache_key: Optional[str] = None) -> None:
             else:
                 cache.clear()
     except Exception as e:
-        print(f"Error clearing cache: {str(e)}")
+        logger.error(f"Error clearing cache: {str(e)}")
 
 def get_cache_stats() -> dict[str, Union[int, list[str]]]:
     """
@@ -106,5 +109,5 @@ def get_cache_stats() -> dict[str, Union[int, list[str]]]:
             }
             return stats
     except Exception as e:
-        print(f"Error getting cache stats: {str(e)}")
+        logger.error(f"Error getting cache stats: {str(e)}")
         return {'error': str(e)}

@@ -7,6 +7,7 @@ from ml_serving.utils import SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PR
 from langchain_community.llms.mlx_pipeline import MLXPipeline
 from langchain_community.chat_models.mlx import ChatMLX
 from langchain.schema.messages import HumanMessage, SystemMessage
+from logger import get_logger
 
 # Load environment variables from the project root
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -20,6 +21,8 @@ llm = MLXPipeline.from_model_id(
     model_id=MODEL_PATH, pipeline_kwargs={"max_tokens": 2048, "verbose": True}
 )
 chatmlx = ChatMLX(llm=llm)
+
+logger = get_logger(__name__)
 
 def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
     """
@@ -56,7 +59,7 @@ def mlx_summarize(text: str, prompt_version=3) -> dict[str, Any]:
             summarized_json = SummaryResponse.model_validate_json(json_text)
             return summarized_json.model_dump()
         except Exception as e:
-            print(f"Attempt {attempt} {text[:15]} failed: {e}")
+            logger.error(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
                 dump_failed_text(formatted_prompt)

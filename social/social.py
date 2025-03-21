@@ -7,8 +7,9 @@ import os
 import random
 import logging
 from typing import Dict, Any, List, Optional
+from logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 HEADERS = {
     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -39,7 +40,7 @@ def safe_parse_date(date_str: str, fmt: str) -> datetime | None:
     try:
         return datetime.strptime(date_str, fmt)
     except Exception as e:
-        print(f"[safe_parse_date] Error parsing '{date_str}': {e}")
+        logger.error(f"[safe_parse_date] Error parsing '{date_str}': {e}")
         return None
 
 
@@ -106,7 +107,7 @@ def fetch_stocks_social() -> dict:
         data = response.json()
 
         if not isinstance(data, dict) or "data" not in data:
-            print(f"[fetch_stocks_social] Unexpected data format: {type(data)}")
+            logger.error(f"[fetch_stocks_social] Unexpected data format: {type(data)}")
             return mapping
 
         # Process each ticker's social data
@@ -148,11 +149,11 @@ def fetch_stocks_social() -> dict:
             }
 
     except requests.RequestException as e:
-        print(f"[fetch_stocks_social] Request error: {e}")
+        logger.error(f"[fetch_stocks_social] Request error: {e}")
     except json.JSONDecodeError as e:
-        print(f"[fetch_stocks_social] JSON decode error: {e}")
+        logger.error(f"[fetch_stocks_social] JSON decode error: {e}")
     except Exception as e:
-        print(f"[fetch_stocks_social] Unexpected error: {e}")
+        logger.error(f"[fetch_stocks_social] Unexpected error: {e}")
 
     return mapping
 
@@ -206,7 +207,7 @@ def fetch_stocks_sentiment(timeframe: str = "1+week") -> dict:
         data = response.json()
 
         if not isinstance(data, list):
-            print(f"[fetch_stocks_sentiment] Unexpected data format: {type(data)}")
+            logger.error(f"[fetch_stocks_sentiment] Unexpected data format: {type(data)}")
             return mapping
 
         for ticker_data in data:
@@ -239,11 +240,11 @@ def fetch_stocks_sentiment(timeframe: str = "1+week") -> dict:
             mapping[ticker] = cleaned_data
 
     except requests.RequestException as e:
-        print(f"[fetch_stocks_sentiment] Request error: {e}")
+        logger.error(f"[fetch_stocks_sentiment] Request error: {e}")
     except json.JSONDecodeError as e:
-        print(f"[fetch_stocks_sentiment] JSON decode error: {e}")
+        logger.error(f"[fetch_stocks_sentiment] JSON decode error: {e}")
     except Exception as e:
-        print(f"[fetch_stocks_sentiment] Unexpected error: {e}")
+        logger.error(f"[fetch_stocks_sentiment] Unexpected error: {e}")
 
     return mapping
 

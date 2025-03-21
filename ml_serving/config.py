@@ -8,9 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # MLX Configuration
-# MLX_MODEL_PATH = os.environ.get("MLX_MODEL_PATH", "/Users/roy.belio/Repos/QSBets/ml_serving/mlx_model") # fino1 llama 8b
-# MLX_MODEL_PATH = os.environ.get("MLX_MODEL_PATH", "mlx-community/QwQ-32B-3bit")
-MLX_MODEL_PATH = os.environ.get("MLX_MODEL_PATH", "mlx-community/Qwen2.5-7B-Instruct-1M-8bit")
+MLX_MODEL_PATH = os.environ.get("MLX_MODEL_PATH", "/Users/roy.belio/Repos/QSBets/ml_serving/mlx_model") # fino1 llama 8b is the one I downloaded and quantized
 MLX_NUM_WORKERS = int(os.environ.get("MLX_NUM_WORKERS", "4"))
 
 # Azure OpenAI Configuration

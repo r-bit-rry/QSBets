@@ -146,3 +146,4 @@ results/*
 .events/*
 .debug_dumps/*
 ml_serving/mlx_model
+ml_serving/Fino1Q4

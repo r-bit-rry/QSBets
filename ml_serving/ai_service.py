@@ -8,18 +8,21 @@ import os
 import random
 
 import time
-import traceback
-from typing import Any, Dict, Callable, List, Optional, Union
+from typing import Any, Dict, Callable, List, Union
 from langchain.schema import Document
 from langchain.prompts import PromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 
 from langchain.schema.messages import SystemMessage, HumanMessage
+from cache.cache import HOURS2_TTL, cached
 from ml_serving.utils import SummaryResponse, dump_failed_text
-from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, SUMMARIZE_PROMPT_V2, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT
+from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT
 from ml_serving.model_server import get_model_server
 from ml_serving.model_base import extract_json_from_response
+from logger import get_logger
+
+logger = get_logger("qsbets")
 
 # System prompt for stock analysis
 STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your analysis in the requested JSON format."
@@ -28,7 +31,24 @@ STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your anal
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
 
+# New helper for synchronous processing with retries
+def _process_sync_with_retry(process_fn: Callable[[], Any], formatted_prompt: str, metadata: Dict[str, Any], max_retries: int, success_msg: str) -> Any:
+    for attempt in range(1, max_retries + 1):
+        try:
+            result = process_fn()
+            logger.info(success_msg)
+            return result
+        except Exception as e:
+            logger.error(f"Attempt {attempt} failed: {e}")
+            if attempt == max_retries:
+                dump_failed_text(formatted_prompt)
+                return {"error": str(e), "metadata": metadata}
+            delay = DEFAULT_BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
+            logger.error(f"Retrying in {delay:.2f} seconds...")
+            time.sleep(delay)
 
+
+@cached(HOURS2_TTL)
 def map_reduce_summarize(
     documents: List[Document],
     stock: str,
@@ -54,7 +74,7 @@ def map_reduce_summarize(
         for chunk in chunks:
             splits.append(Document(page_content=chunk, metadata=doc.metadata))
 
-    print(f"Split {len(documents)} documents into {len(splits)} chunks")
+    logger.info(f"Split {len(documents)} documents into {len(splits)} chunks")
 
     # Map: Summarize each chunk
     map_template = """Summarize the following text for the stock {stock}:
@@ -78,21 +98,12 @@ def map_reduce_summarize(
 
     reduce_chain = reduce_prompt | llm | callback
 
-    # Execute map step
-    # print("Starting map step...")
-    # mapped_results = []
-
-    # for i, split in enumerate(splits):
-    #     print(f"Processing chunk {i+1}/{len(splits)}...")
-    #     result = map_chain.ainvoke({"text": split.page_content, "stock": stock})
-    #     mapped_results.append(result)
-    #     print(f"Chunk {i+1} processed")
-    print("Starting map step...")
+    logger.info("Starting map step...")
 
     async def process_chunks_async():
         tasks = []
         for i, split in enumerate(splits):
-            print(f"Queuing chunk {i+1}/{len(splits)}...")
+            logger.info(f"Queuing chunk {i+1}/{len(splits)}...")
             # Create task for each chunk
             task = asyncio.create_task(
                 map_chain.ainvoke({"text": split.page_content, "stock": stock})
@@ -104,16 +115,16 @@ def map_reduce_summarize(
         for i, task in sorted(tasks):  # Maintain original order
             try:
                 result = await task
-                print(f"Chunk {i+1}/{len(splits)} processed")
+                logger.info(f"Chunk {i+1}/{len(splits)} processed")
                 mapped_results.append(result)
             except Exception as e:
-                print(f"Error processing chunk {i+1}: {e}")
+                logger.error(f"Error processing chunk {i+1}: {e}")
                 # Fall back to sync processing for failed chunks
                 result = map_chain.invoke(
                     {"text": splits[i].page_content, "stock": stock}
                 )
                 mapped_results.append(result)
-                print(f"Chunk {i+1} processed (sequential fallback)")
+                logger.info(f"Chunk {i+1} processed (sequential fallback)")
 
         return mapped_results
 
@@ -121,22 +132,21 @@ def map_reduce_summarize(
     mapped_results = asyncio.run(process_chunks_async())
 
     # Execute reduce step
-    print("Starting reduce step...")
+    logger.info("Starting reduce step...")
     result = reduce_chain.invoke(
-        {"summaries": "\n\n".join(mapped_results), "stock": stock}
+        {"summaries": "\n".join(mapped_results), "stock": stock}
     )
 
     return result
 
 
-def summarize(text: str, prompt_version: int = 3, callback: Callable = None, 
+def summarize(text: str, callback: Callable = None, 
               backend: str = "mlx", metadata: Dict[str, Any] = None) -> Union[Dict[str, Any], None]:
     """
     Summarize given text using the configured model server.
     
     Args:
         text: The text to summarize
-        prompt_version: Version of prompt to use (2 or 3)
         callback: Optional callback function for async processing
         backend: Backend to use ('mlx', 'azure', 'ollama')
         metadata: Additional metadata to include in result
@@ -145,12 +155,9 @@ def summarize(text: str, prompt_version: int = 3, callback: Callable = None,
         Dictionary with summarized information or None if callback provided
     """
     max_attempts = DEFAULT_MAX_RETRIES
-    attempt = 1
     metadata = metadata or {}
 
-    # Get the appropriate prompt
-    prompt = SUMMARIZE_PROMPT_V3 if prompt_version == 3 else SUMMARIZE_PROMPT_V2
-    formatted_prompt = prompt.format(text=text)
+    formatted_prompt = SUMMARIZE_PROMPT_V3.format(text=text)
 
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),
@@ -163,7 +170,7 @@ def summarize(text: str, prompt_version: int = 3, callback: Callable = None,
     # Process asynchronously if callback provided
     if callback:
         request_id = f"summarize_{hash(text)[:20]}_{time.time()}"
-        
+
         def on_complete(req_id, result):
             try:
                 if "error" in result:
@@ -174,10 +181,9 @@ def summarize(text: str, prompt_version: int = 3, callback: Callable = None,
                 json_text = extract_json_from_response(result["content"])
                 summarized_json = SummaryResponse.model_validate_json(json_text)
                 result = summarized_json.model_dump()
-                result["metadata"] = metadata
                 callback(result)
             except Exception as e:
-                print(f"Error processing summary result: {e}")
+                logger.error(f"Error processing summary result: {e}")
                 callback({"error": str(e), "metadata": metadata})
 
         # Submit request
@@ -189,34 +195,15 @@ def summarize(text: str, prompt_version: int = 3, callback: Callable = None,
         )
         return None
 
-    # Process synchronously
-    while attempt <= max_attempts:
-        try:
-            # Process request
-            result = model_server.process_sync(messages, metadata=metadata)
-            
-            if "error" in result:
-                raise Exception(f"Model server error: {result['error']}")
+    def process_summary():
+        res = model_server.process_sync(messages, metadata=metadata)
+        if "error" in res:
+            raise Exception(f"Model server error: {res['error']}")
+        json_text = extract_json_from_response(res["content"])
+        SummaryResponse.model_validate_json(json_text)
+        return json_text
 
-            # Extract the JSON response from the text output
-            json_text = extract_json_from_response(result["content"])
-            
-            # Validate against the schema
-            summarized_json = SummaryResponse.model_validate_json(json_text)
-            result = summarized_json.model_dump()
-            result["metadata"] = metadata
-            return result
-            
-        except Exception as e:
-            print(f"Attempt {attempt} summarize failed: {e}")
-            attempt += 1
-            if attempt > max_attempts:
-                dump_failed_text(formatted_prompt)
-                return {"error": str(e), "metadata": metadata}
-                
-            # Exponential backoff with jitter
-            delay = DEFAULT_BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-            time.sleep(delay)
+    return _process_sync_with_retry(process_summary, formatted_prompt, metadata, max_attempts, "Analysis completed successfully")
 
 
 def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable = None, 
@@ -235,8 +222,6 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
         Parsed JSON response with stock analysis or empty dict on failure
         If callback is provided, the result is passed to the callback and None is returned
     """
-    retry_count = 0
-    result = {}
     metadata = metadata or {}
 
     try:
@@ -244,7 +229,7 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
             document = file.read()
     except Exception as e:
         error_msg = f"Error reading file {filepath}: {e}"
-        print(error_msg)
+        logger.error(error_msg)
         result = {"error": error_msg, "metadata": metadata}
         if callback:
             callback(result)
@@ -273,7 +258,7 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
     # Process asynchronously if callback provided
     if callback:
         request_id = f"consult_{os.path.basename(filepath)}_{time.time()}"
-        
+
         def on_complete(req_id, model_result):
             try:
                 if "error" in model_result:
@@ -283,10 +268,10 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
                 # Extract and parse JSON
                 json_str = extract_json_from_response(model_result["content"])
                 result = json.loads(json_str)
-                result["metadata"] = metadata
                 callback(result)
             except Exception as e:
-                print(f"Error processing consult result: {e}")
+                logger.error(f"Error processing consult result: {e}")
+                dump_failed_text(model_result["content"])
                 callback({"error": str(e), "metadata": metadata})
 
         # Submit request
@@ -298,36 +283,12 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
         )
         return None
 
-    # Process synchronously with retries
-    while retry_count <= max_retries:
-        try:
-            print(f"Processing file: {filepath}")
+    def process_consult():
+        res = model_server.process_sync(messages, metadata=metadata)
+        if "error" in res:
+            raise Exception(f"Model server error: {res['error']}")
+        json_str = extract_json_from_response(res["content"])
+        return json.loads(json_str)
 
-            # Get response from model
-            model_result = model_server.process_sync(messages, metadata=metadata)
-            
-            if "error" in model_result:
-                raise Exception(f"Model server error: {model_result['error']}")
-
-            # Extract and parse the JSON from the response
-            json_str = extract_json_from_response(model_result["content"])
-            result = json.loads(json_str)
-            # Add metadata to the result
-            result["metadata"] = metadata
-            print(f"Analysis completed successfully")
-            break
-            
-        except Exception as e:
-            retry_count += 1
-            if retry_count > max_retries:
-                print(f"Failed after {max_retries} retries: {e}")
-                result = {"error": str(e), "metadata": metadata}
-                break
-
-            # Exponential backoff with jitter
-            delay = DEFAULT_BASE_DELAY * (2 ** (retry_count - 1)) + random.uniform(0, 1)
-            traceback.print_exc()
-            print(f"Error: {e}. Retrying in {delay:.2f} seconds... (Attempt {retry_count}/{max_retries})")
-            time.sleep(delay)
-
+    result = _process_sync_with_retry(process_consult, formatted_prompt, metadata, max_retries, "Analysis completed successfully")
     return result

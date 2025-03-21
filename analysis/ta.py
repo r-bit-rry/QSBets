@@ -5,7 +5,9 @@ import pandas as pd
 import talib
 from cache.cache import cached, DAY_TTL
 from nasdaq import fetch_historical_quotes
+from logger import get_logger
 
+logger = get_logger(__name__)
 
 def prepare_dataframe(historical_json, date_format="%m/%d/%Y"):
     """
@@ -212,5 +214,5 @@ def round_numbers(obj):
 if __name__ == "__main__":
     symbol = "LPTH"
     indicators = fetch_technical_indicators(symbol)
-    print(f"Technical indicators for {symbol}:")
+    logger.debug(f"Technical indicators for {symbol}:")
     print(json.dumps(indicators, indent=2))

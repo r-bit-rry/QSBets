@@ -99,7 +99,13 @@ The system follows a clear #codebase flow:
 - ☑ Event driven analysis, intial stocks list + telegram listening, main local analysis with technical indicators, and final deepseek analysis.
 - ☑ Better structured input to improve performance and token cost -> changed to yaml.
 - ☐ Add proper backtesting for the strategies.
-- ☐ Add logging to failed consulting and summarization attempts for better debugging.
+- ☑ Add logging to failed consulting and summarization attempts for better debugging.
+
+## Acknowledgments
+- Thanks to the contributors and maintainers of the libraries and tools used in this project.
+- Follow https://huggingface.co/spaces/TheFinAI/IJCAI-2024-FinLLM-Learderboard for the latest updates on financial models and benchmarks.
+- Finetuning ideas: https://aclanthology.org/2024.finnlp-2.13.pdf
+- More granualar approach: https://arxiv.org/pdf/2502.05878
 
 ## Additional Notes
 - **API Keys:** Remember to generate and securely store API keys before running the application.

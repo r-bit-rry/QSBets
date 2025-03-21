@@ -2,6 +2,7 @@ from typing import Any
 import os
 from dotenv import load_dotenv
 from ollama import Client
+from logger import get_logger
 
 from cache.cache import MONTH_TTL, cached
 from ml_serving.prompts import SUMMARIZE_PROMPT_V4, SYSTEM_PROMPT
@@ -15,6 +16,7 @@ client = Client(
     timeout=600,
 )
 
+logger = get_logger(__name__)
 
 @cached(MONTH_TTL)
 def ollama_summarize(text: str, prompt_version=4, model="plutus3") -> dict[str, Any]:
@@ -48,7 +50,7 @@ def ollama_summarize(text: str, prompt_version=4, model="plutus3") -> dict[str, 
             summarized_json = SummaryResponse.model_validate_json(response.response)
             return summarized_json.model_dump()
         except Exception as e:
-            print(f"Attempt {attempt} {text[:15]} failed: {e}")
+            logger.error(f"Attempt {attempt} {text[:15]} failed: {e}")
             attempt += 1
             if attempt > max_attempts:
                 dump_failed_text(formatted_prompt)

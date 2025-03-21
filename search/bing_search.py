@@ -1,5 +1,8 @@
 import os
 import requests
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class BingSearch:
@@ -67,6 +70,6 @@ class BingSearch:
                     if url:
                         retrieved_pages.append(url)
         except Exception as e:
-            print(f"Failed to retrieve pages: {str(e)}")
+            logger.error(f"Failed to retrieve pages: {str(e)}")
 
         return retrieved_pages

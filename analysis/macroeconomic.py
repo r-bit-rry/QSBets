@@ -9,6 +9,9 @@ import requests
 from trafilatura import extract
 import json
 from cache.cache import cached, DAY_TTL
+from logger import get_logger
+
+logger = get_logger(__name__)
 
 # You would need to get a free API key from https://fred.stlouisfed.org/docs/api/api_key.html
 load_dotenv(".env")
@@ -47,7 +50,7 @@ def fetch_macroeconomic_data():
         # Yield curve (2y-10y spread, negative indicates potential recession)
         macro_data['yield_curve'] = round(macro_data['treasury_10y'] - macro_data['treasury_2y'], 2)
     except Exception as e:
-        print(f"Error fetching interest rates: {e}")
+        logger.error(f"Error fetching interest rates: {e}")
 
     # Inflation
     try:
@@ -61,7 +64,7 @@ def fetch_macroeconomic_data():
         core_cpi_yoy = 100 * (core_cpi.iloc[-1] - core_cpi.iloc[-13]) / core_cpi.iloc[-13]
         macro_data['core_inflation'] = round(core_cpi_yoy, 2)
     except Exception as e:
-        print(f"Error fetching inflation data: {e}")
+        logger.error(f"Error fetching inflation data: {e}")
 
     # Debt Cycle Position Indicators
     try:
@@ -97,7 +100,7 @@ def fetch_macroeconomic_data():
 
         macro_data['debt_cycle_position'] = debt_cycle
     except Exception as e:
-        print(f"Error calculating debt cycle position: {e}")
+        logger.error(f"Error calculating debt cycle position: {e}")
 
     # Liquidity Indicators
     try:
@@ -147,7 +150,7 @@ def fetch_macroeconomic_data():
 
         macro_data["liquidity_conditions"] = liquidity
     except Exception as e:
-        print(f"Error calculating liquidity indicators: {e}")
+        logger.error(f"Error calculating liquidity indicators: {e}")
         # Set default values if calculation fails
         macro_data["m2_growth"] = "N/A"
         macro_data["fed_balance_sheet_change"] = "N/A"
@@ -158,7 +161,7 @@ def fetch_macroeconomic_data():
         gdp_growth = fred.get_series('A191RL1Q225SBEA', start_date, end_date)
         macro_data['gdp_growth'] = round(gdp_growth.iloc[-1], 2)
     except Exception as e:
-        print(f"Error fetching GDP data: {e}")
+        logger.error(f"Error fetching GDP data: {e}")
 
     return macro_data
 
@@ -202,7 +205,7 @@ def fetch_sector_indicators():
                 mom_change = 100 * (data.iloc[-1] - data.iloc[-2]) / data.iloc[-2]
                 sector_data[f"{name}_MoM"] = round(mom_change, 2)
         except Exception as e:
-            print(f"Error fetching {name}: {e}")
+            logger.error(f"Error fetching {name}: {e}")
     
     return sector_data
 
@@ -343,7 +346,7 @@ def fallback_macro_data():
                         except:
                             pass
     except Exception as e:
-        print(f"Error in fallback Fed funds rate: {e}")
+        logger.error(f"Error in fallback Fed funds rate: {e}")
     
     # Fetch inflation data from BLS
     try:
@@ -362,7 +365,7 @@ def fallback_macro_data():
                     if matches:
                         macro_data['inflation_rate'] = float(matches[0])
     except Exception as e:
-        print(f"Error in fallback inflation data: {e}")
+        logger.error(f"Error in fallback inflation data: {e}")
     
     return macro_data
 
@@ -376,7 +379,7 @@ def get_macroeconomic_context() -> dict:
     try:
         macro_data = fetch_macroeconomic_data()
     except Exception as e:
-        print(f"Error with FRED API, using fallback: {e}")
+        logger.error(f"Error with FRED API, using fallback: {e}")
         macro_data = fallback_macro_data()
     
     # Format the data for inclusion in stock analysis
@@ -427,4 +430,4 @@ if __name__ == "__main__":
     recession_data = fetch_recession_indicators()
     print(json.dumps(recession_data, indent=2))
 
-    
+

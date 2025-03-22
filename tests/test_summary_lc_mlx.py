@@ -3,6 +3,8 @@ import os
 import sys
 import time
 from typing import Any, Dict, List, Optional
+
+from ml_serving.utils import get_chat
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -17,16 +19,15 @@ from langchain_core.prompts import PromptTemplate
 
 from nasdaq import fetch_stock_news
 from ml_serving.config import initialize_model_server
-from ml_serving.mlx_model_server import get_model_server
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
 class MLXServerLLM(LLM):
     """LangChain LLM implementation for MLX model server"""
-    
+
     model_server: Any = None
     model_path: str = None
-    
+
     def __init__(self, model_server=None, model_path=None):
         """Initialize with a model server or path"""
         super().__init__()
@@ -34,15 +35,15 @@ class MLXServerLLM(LLM):
             self.model_server = model_server
         elif model_path:
             self.model_path = model_path
-            self.model_server = get_model_server(model_path)
+            self.model_server = get_chat(model=model_path)
         else:
             # Use default initialization
             initialize_model_server("mlx")
-            self.model_server = get_model_server()
-    
+            self.model_server = get_chat()
+
     def _llm_type(self) -> str:
         return "mlx_server"
-    
+
     def _call(
         self,
         prompt: str,
@@ -55,13 +56,13 @@ class MLXServerLLM(LLM):
             SystemMessage(content="You are a helpful assistant that summarizes text."),
             HumanMessage(content=prompt)
         ]
-        
+
         # Use synchronous processing
         result = self.model_server.process_sync(messages)
-        
+
         if "error" in result:
             raise RuntimeError(f"MLX model error: {result['error']}")
-        
+
         return result.get("content", "")
 
 

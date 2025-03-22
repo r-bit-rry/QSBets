@@ -2,13 +2,14 @@ import sys
 import os
 import time
 
+from langchain.schema import Document
+
 # Add project root to path if running directly
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
+from ml_serving.ai_service import map_reduce_summarize
 
-# Import the function to test
-from ml_serving.ollama_summarize import ollama_summarize
 
 def main():
     text = """
@@ -39,7 +40,7 @@ At the same time, the stock is attractively priced, trading at a P/E ratio of un
         # Start the timer
         start_time = time.time()
         
-        summary = ollama_summarize(text)
+        summary = map_reduce_summarize([Document(text)])
         
         # Calculate and display elapsed time
         elapsed_time = time.time() - start_time

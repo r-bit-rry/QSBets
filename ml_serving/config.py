@@ -29,42 +29,22 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "plutus3")
 
 # Default backend to use
 DEFAULT_BACKEND = os.environ.get("DEFAULT_AI_BACKEND", "mlx")
-
-def initialize_model_server(backend: str = DEFAULT_BACKEND):
-    """
-    Initialize the model server with the specified backend.
-    
-    Args:
-        backend: Backend type ('mlx', 'azure', 'ollama')
-        
-    Returns:
-        Initialized model server
-    """
-    from ml_serving.model_server import get_model_server
-    
-    if backend.lower() == "mlx":
-        return get_model_server(
-            backend="mlx",
-            model_path=MLX_MODEL_PATH,
-            num_workers=MLX_NUM_WORKERS
-        )
-    
-    elif backend.lower() == "azure":
-        return get_model_server(
-            backend="azure",
-            azure_endpoint=AZURE_ENDPOINT,
-            azure_api_key=AZURE_API_KEY,
-            azure_deployment=AZURE_DEPLOYMENT,
-            num_workers=1  # Azure handles parallelism internally
-        )
-    
-    elif backend.lower() == "ollama":
-        return get_model_server(
-            backend="ollama",
-            ollama_host=OLLAMA_HOST,
-            ollama_model=OLLAMA_MODEL,
-            num_workers=1  # Ollama handles parallelism internally
-        )
-    
-    else:
-        raise ValueError(f"Unknown backend: {backend}")
+QWQ_KWARGS = {
+    "max_tokens": 64000,
+    "verbose": True,
+    "temp": 0.6,
+    "top_p": 0.95,
+    "min_p": 0.00,
+    "top_k": 40,
+    "repetition_penalty": 1.0,
+    "repetition_context_size": 20,
+}
+# https://github.com/SUFE-AIFLM-Lab/Fin-R1/blob/main/README_en.md
+# https://huggingface.co/mingz2022/Fin-R1-mlx-8Bit
+FIN_R1_ARGS = {
+    "temp": 0.7,
+    "top_p": 0.8,
+    "max_tokens": 4096,
+    "repetition_penalty": 1.05, 
+    "repetition_context_size": 20
+}

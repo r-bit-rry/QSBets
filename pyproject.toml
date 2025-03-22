@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "QSBets"
-version = "0.10.0"
+version = "0.11.0"
 requires-python = ">=3.12, <3.14"
 description = "Event-driven stock analysis and investment recommendation system"
 dependencies = [
     "langchain-ollama",
     "langchain-azure-ai",
     # "langchain-chroma",
-    "langchain_community",
+    "langchain-community",
     "python-dotenv",
     "numpy",
     "pydantic",

@@ -10,7 +10,7 @@
       "envFile": "${workspaceFolder}/.env",
       "cwd": "${workspaceFolder}/",
       "python": "${workspaceFolder}/.venv/bin/python", // adjust for Windows if needed
-      "args": ["--top=0"]
+      "args": ["--top=0", "--analyze=SMCI"]
     }
   ]
 }

@@ -4,60 +4,40 @@ Provides high-level methods for consulting and summarization.
 """
 import asyncio
 import json
-import os
-import random
 
 import time
 from typing import Any, Dict, Callable, List, Union
 from langchain.schema import Document
-from langchain.prompts import PromptTemplate
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_core.output_parsers import StrOutputParser
 
 from langchain.schema.messages import SystemMessage, HumanMessage
+from langchain_core.prompts import ChatPromptTemplate
 from cache.cache import HOURS2_TTL, cached
-from ml_serving.utils import SummaryResponse, dump_failed_text
-from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, SUMMARIZE_PROMPT_V3, SYSTEM_PROMPT
-from ml_serving.model_server import get_model_server
-from ml_serving.model_base import extract_json_from_response
+from ml_serving.config import FIN_R1_ARGS
+from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, STOCK_CONSULT_SYSTEM_PROMPT, STOCK_SUMMARIZE_SYSTEM_PROMPT, SUMMARIZE_PROMPT_V3
+from ml_serving.utils import JsonOutputParser, SummaryResponse, dump_failed_text, extract_json_from_response, get_chat
 from logger import get_logger
 
 logger = get_logger("qsbets")
-
-# System prompt for stock analysis
-STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your analysis in the requested JSON format."
 
 # Default settings
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
 
-# New helper for synchronous processing with retries
-def _process_sync_with_retry(process_fn: Callable[[], Any], formatted_prompt: str, metadata: Dict[str, Any], max_retries: int, success_msg: str) -> Any:
-    for attempt in range(1, max_retries + 1):
-        try:
-            result = process_fn()
-            logger.info(success_msg)
-            return result
-        except Exception as e:
-            logger.error(f"Attempt {attempt} failed: {e}")
-            if attempt == max_retries:
-                dump_failed_text(formatted_prompt)
-                return {"error": str(e), "metadata": metadata}
-            delay = DEFAULT_BASE_DELAY * (2 ** (attempt - 1)) + random.uniform(0, 1)
-            logger.error(f"Retrying in {delay:.2f} seconds...")
-            time.sleep(delay)
-
-
-@cached(HOURS2_TTL)
+# @cached(HOURS2_TTL)
 def map_reduce_summarize(
     documents: List[Document],
     stock: str,
     callback: Callable = StrOutputParser(),
     backend: str = "mlx",
     chunk_size: int = 10000,
-)-> str:
-    """Implement map-reduce summarization using langchain"""
-    llm = get_model_server(backend=backend)
+    batch_size: int = 4,  # Control parallel processing
+) -> str:
+    """Implement map-reduce summarization using langchain with optimized memory usage"""
+    llm = get_chat(
+        backend=backend, system_message=SystemMessage(STOCK_SUMMARIZE_SYSTEM_PROMPT)
+    )
 
     # Create text splitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(
@@ -81,9 +61,14 @@ def map_reduce_summarize(
     {text}
     
     Summary:"""
-    map_prompt = PromptTemplate.from_template(map_template)
 
-    map_chain = map_prompt | llm | callback
+    messages = ChatPromptTemplate.from_messages(
+        [
+            # ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
+            ("user", map_template),
+        ]
+    )
+    map_chain = messages | llm | callback
 
     # Reduce: Combine summaries
     reduce_template = """You are given a set of summaries extracted from a longer text about stock news.
@@ -94,42 +79,81 @@ def map_reduce_summarize(
     {summaries}
     
     COMPREHENSIVE SUMMARY:"""
-    reduce_prompt = PromptTemplate.from_template(reduce_template)
 
-    reduce_chain = reduce_prompt | llm | callback
+    messages = ChatPromptTemplate.from_messages(
+        [
+            # ("system",STOCK_SUMMARIZE_SYSTEM_PROMPT),
+            ("user", reduce_template)
+        ]
+    )
+    reduce_chain = messages | llm | callback
 
     logger.info("Starting map step...")
 
-    async def process_chunks_async():
-        tasks = []
-        for i, split in enumerate(splits):
-            logger.info(f"Queuing chunk {i+1}/{len(splits)}...")
-            # Create task for each chunk
-            task = asyncio.create_task(
-                map_chain.ainvoke({"text": split.page_content, "stock": stock})
+    # Option 1: Process in batches to control memory usage
+    async def process_chunks_in_batches():
+        mapped_results = [None] * len(splits)  # Pre-allocate result list
+
+        # Process in batches to limit concurrent model loads
+        for batch_start in range(0, len(splits), batch_size):
+            batch_end = min(batch_start + batch_size, len(splits))
+            logger.info(
+                f"Processing batch {batch_start//batch_size + 1}, chunks {batch_start+1}-{batch_end}"
             )
-            tasks.append((i, task))
 
-        # Process results in order
-        mapped_results = []
-        for i, task in sorted(tasks):  # Maintain original order
-            try:
-                result = await task
-                logger.info(f"Chunk {i+1}/{len(splits)} processed")
-                mapped_results.append(result)
-            except Exception as e:
-                logger.error(f"Error processing chunk {i+1}: {e}")
-                # Fall back to sync processing for failed chunks
-                result = map_chain.invoke(
-                    {"text": splits[i].page_content, "stock": stock}
+            # Create tasks for this batch only
+            batch_tasks = []
+            for i in range(batch_start, batch_end):
+                task = asyncio.create_task(
+                    map_chain.ainvoke({"text": splits[i].page_content, "stock": stock})
                 )
-                mapped_results.append(result)
-                logger.info(f"Chunk {i+1} processed (sequential fallback)")
+                batch_tasks.append((i, task))
 
-        return mapped_results
+            # Process batch results
+            for i, task in batch_tasks:
+                try:
+                    result = await task
+                    logger.info(f"Chunk {i+1}/{len(splits)} processed")
+                    mapped_results[i] = result
+                except Exception as e:
+                    logger.error(f"Error processing chunk {i+1}: {e}")
+                    # Fall back to sync processing for failed chunks
+                    result = map_chain.invoke(
+                        {"text": splits[i].page_content, "stock": stock}
+                    )
+                    mapped_results[i] = result
+                    logger.info(f"Chunk {i+1} processed (sequential fallback)")
 
-    # Run the async function
-    mapped_results = asyncio.run(process_chunks_async())
+        # Remove any None values (shouldn't happen but just in case)
+        return [r for r in mapped_results if r is not None]
+
+    # Option 2: Serial processing with streaming for very large datasets
+    # async def process_chunks_serially():
+    #     mapped_results = []
+    #     for i, split in enumerate(splits):
+    #         logger.info(f"Processing chunk {i+1}/{len(splits)}...")
+    #         try:
+    #             # Process one at a time to minimize memory usage
+    #             result = await map_chain.ainvoke(
+    #                 {"text": split.page_content, "stock": stock}
+    #             )
+    #             mapped_results.append(result)
+    #             logger.info(f"Chunk {i+1}/{len(splits)} processed")
+    #         except Exception as e:
+    #             logger.error(f"Error processing chunk {i+1}: {e}")
+    #             # Fallback to sync processing
+    #             result = map_chain.invoke({"text": split.page_content, "stock": stock})
+    #             mapped_results.append(result)
+    #             logger.info(f"Chunk {i+1} processed (sequential fallback)")
+    #     return mapped_results
+
+    # Choose processing strategy based on number of chunks
+    if len(splits) > 20:  # Many chunks - use batched approach
+        mapped_results = asyncio.run(process_chunks_in_batches())
+    else:  # Fewer chunks - can use original approach
+        mapped_results = asyncio.run(
+            process_chunks_in_batches()
+        )  # Still use batches for safety
 
     # Execute reduce step
     logger.info("Starting reduce step...")
@@ -160,12 +184,12 @@ def summarize(text: str, callback: Callable = None,
     formatted_prompt = SUMMARIZE_PROMPT_V3.format(text=text)
 
     messages = [
-        SystemMessage(content=SYSTEM_PROMPT),
+        SystemMessage(content=STOCK_SUMMARIZE_SYSTEM_PROMPT),
         HumanMessage(content=formatted_prompt)
     ]
 
     # Get model server
-    model_server = get_model_server(backend=backend)
+    model_server = get_chat(backend=backend)
 
     # Process asynchronously if callback provided
     if callback:
@@ -206,8 +230,13 @@ def summarize(text: str, callback: Callable = None,
     return _process_sync_with_retry(process_summary, formatted_prompt, metadata, max_attempts, "Analysis completed successfully")
 
 
-def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable = None, 
-            backend: str = "mlx", max_retries: int = DEFAULT_MAX_RETRIES) -> Union[Dict[str, Any], None]:
+def consult(
+    filepath: str,
+    metadata: Dict[str, Any] = None,
+    callback: Callable = JsonOutputParser(),
+    backend: str = "mlx",
+    max_retries: int = DEFAULT_MAX_RETRIES,
+) -> Union[Dict[str, Any], None]:
     """
     Consult the model with a stock data file for analysis
     
@@ -237,8 +266,8 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
         return result
 
     # Determine which prompt to use based on purchase_price presence
+    purchase_price = metadata.get("purchase_price")
     try:
-        purchase_price = metadata.get("purchase_price")
         if purchase_price is not None and str(purchase_price).strip() and float(purchase_price) > 0:
             formatted_prompt = OWNERSHIP_PROMPT.format(loadedDocument=document, purchase_price=purchase_price)
         else:
@@ -246,49 +275,22 @@ def consult(filepath: str, metadata: Dict[str, Any] = None, callback: Callable =
     except (ValueError, TypeError):
         formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
 
-    # Create messages
-    messages = [
-        SystemMessage(content=STOCK_SYSTEM_PROMPT),
-        HumanMessage(content=formatted_prompt)
-    ]
+    prompt = OWNERSHIP_PROMPT if purchase_price else CONSULT_PROMPT_V7
 
+    messages = ChatPromptTemplate.from_messages(
+        [
+            # ("system",STOCK_SUMMARIZE_SYSTEM_PROMPT),
+            ("user", prompt.template)
+        ]
+    )
     # Get model server
-    model_server = get_model_server(backend=backend)
-
-    # Process asynchronously if callback provided
-    if callback:
-        request_id = f"consult_{os.path.basename(filepath)}_{time.time()}"
-
-        def on_complete(req_id, model_result):
-            try:
-                if "error" in model_result:
-                    callback({"error": model_result["error"], "metadata": metadata})
-                    return
-
-                # Extract and parse JSON
-                json_str = extract_json_from_response(model_result["content"])
-                result = json.loads(json_str)
-                callback(result)
-            except Exception as e:
-                logger.error(f"Error processing consult result: {e}")
-                dump_failed_text(model_result["content"])
-                callback({"error": str(e), "metadata": metadata})
-
-        # Submit request
-        model_server.submit_request(
-            request_id=request_id,
-            messages=messages,
-            callback=on_complete,
-            metadata=metadata
-        )
-        return None
-
-    def process_consult():
-        res = model_server.process_sync(messages, metadata=metadata)
-        if "error" in res:
-            raise Exception(f"Model server error: {res['error']}")
-        json_str = extract_json_from_response(res["content"])
-        return json.loads(json_str)
-
-    result = _process_sync_with_retry(process_consult, formatted_prompt, metadata, max_retries, "Analysis completed successfully")
-    return result
+    llm = get_chat(backend=backend, system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
+    llm.with_retry(
+        stop_after_attempt=max_retries
+    )
+    chain = messages | llm | StrOutputParser() | callback
+    res = chain.invoke({"loadedDocument": document, "purchase_price": purchase_price})
+    if "error" in res:
+        raise Exception(f"Model server error: {res['error']}")
+    # json_str = extract_json_from_response(res["content"])
+    return json.loads(res)

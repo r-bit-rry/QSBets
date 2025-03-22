@@ -7,7 +7,8 @@ SUMMARIZE_PROMPT_V2 = (
     '{{"date": "date of the document", "source": "who wrote the document", "summary": "key point or measure, and its value", "relevant_symbol": "relevant stock symbol or ticker"}}. '
     "Analyze the following text:\n{text}"
 )
-SYSTEM_PROMPT = "You are a financial summarization assistant specialized in extracting quantitative insights. Focus on key metrics, valuations (P/E, P/S ratios), growth rates, market positioning, and business risks. Ignore unrelated content and format your response as structured data."
+STOCK_SUMMARIZE_SYSTEM_PROMPT = "You are a financial summarization assistant specialized in extracting quantitative insights. Focus on key metrics, valuations (P/E, P/S ratios), growth rates, market positioning, and business risks. Ignore unrelated content and format your response as structured data."
+STOCK_CONSULT_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your analysis in the requested JSON format."
 
 SUMMARIZE_PROMPT_V3 = (
     "Extract and summarize key financial metrics from the content below."
@@ -193,6 +194,8 @@ CONSULT_PROMPT_V7 = PromptTemplate(
     input_variables=["loadedDocument"],
     template="""Analyze this stock as an expert financial analyst. Identify key opportunities and risks that typical analysis might miss.
     Be thorough in your assessment, with special focus on actionable entry/exit strategies.
+    Reason around the input data until you are confident in your conclusions and you can clearly state your confidence is above 8.
+    If you are not confident, please state that clearly, and in the reasoning state what information can make you more confident.
     Provide a technical, data-driven investment thesis with the following structure:
 
 {{

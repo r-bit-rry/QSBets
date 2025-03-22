@@ -1,6 +1,5 @@
 from langchain.schema import Document
 from datetime import datetime
-from functools import partial
 import json
 import os
 import time

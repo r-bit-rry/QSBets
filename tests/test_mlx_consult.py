@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 # Add the project root to the path to allow importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ml_serving.config import initialize_model_server
-from ml_serving.mlx_fin import consult
+from ml_serving.ai_service import consult
+
 
 
 class TestMlxConsult(unittest.TestCase):
@@ -52,7 +52,6 @@ def test_mlx_consult():
     # Get the path to the test file
     current_dir = os.path.dirname(os.path.abspath(__file__))
     test_file = os.path.join(current_dir, "MRVL_2025-03-16.yaml")
-    initialize_model_server("mlx")
     result = consult(test_file)
 
     if result:

@@ -200,7 +200,7 @@ CONSULT_PROMPT_V7 = PromptTemplate(
 
 {{
   "symbol": "TICKER",
-  "rating": [0-100 score with 100 being strongest buy],
+  "rating": [0-100 score with 100 being strongest buy and 0 a strong sell],
   "confidence": [1-10 confidence in your rating],
   "reasoning": [Concise summary of key factors driving your rating],
   "bullish_factors": [
@@ -244,6 +244,8 @@ OWNERSHIP_PROMPT = PromptTemplate(
     Third, determine if technical/fundamental indicators suggest further upside or increasing risk.
     Fourth, consider macroeconomic conditions affecting this position.
     
+    Reason around the input data until you are confident in your conclusions and you can clearly state your confidence is above 8.
+    If you are not confident, please state that clearly, and in the reasoning state what information can make you more confident.
     Generate a comprehensive position recommendation with the following structure:
 
 {{

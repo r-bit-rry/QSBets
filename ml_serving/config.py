@@ -48,3 +48,11 @@ FIN_R1_ARGS = {
     "repetition_penalty": 1.05, 
     "repetition_context_size": 20
 }
+GEMMA3_KWARGS = {
+    "max_tokens": 4096,
+    "verbose": True,
+    "temp": 1.0,
+    "top_p": 0.95,
+    "min_p": 0.00,
+    "top_k": 64,
+}

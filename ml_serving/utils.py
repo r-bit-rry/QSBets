@@ -4,6 +4,7 @@ import os
 from pydantic import BaseModel
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_core.output_parsers.base import BaseOutputParser
+_chat_instances = {}
 
 
 class SummaryResponse(BaseModel):
@@ -33,24 +34,46 @@ def dump_failed_text(text: str):
 def get_chat(backend: str = "mlx", model: str = None, **kwargs) -> BaseChatModel:
     """
     Get the chat model based on the backend.
-    maybe add a singleton pattern to avoid multiple instances of the same model.
+    Implements a singleton pattern to avoid multiple instances of the same model.
+
     Args:
         backend: The backend to use (e.g., "azure", "mlx", "ollama")
+        model: The model name or path to use
 
     Returns:
         The chat model for the specified backend.
     """
+    # Resolve model if it's None
+    if model is None:
+        if backend == "mlx":
+            model = os.getenv("MLX_MODEL_PATH")
+        elif backend == "ollama":
+            model = os.getenv("OLLAMA_MODEL")
+
+    # Create a key for the instance cache
+    instance_key = (backend, model)
+
+    # Return cached instance if it exists
+    if instance_key in _chat_instances:
+        return _chat_instances[instance_key]
+
+    # Create a new instance
     if backend == "azure":
         from langchain_azure_ai.chat_models import AzureAIChatCompletionsModel
         from azure.core.credentials import AzureKeyCredential
+
         if model is None:
-            return AzureAIChatCompletionsModel(
-                endpoint=endpoint,
-                credential=AzureKeyCredential(api_key),
+            instance = AzureAIChatCompletionsModel(
+                endpoint=os.getenv(
+                    "AZURE_AI_ENDPOINT"
+                ),  # Fixed undefined endpoint variable
+                credential=AzureKeyCredential(
+                    os.getenv("AZURE_AI_API_KEY")
+                ),  # Fixed undefined api_key variable
                 **kwargs,
             )
         else:
-            return AzureAIChatCompletionsModel(
+            instance = AzureAIChatCompletionsModel(
                 endpoint=os.getenv("AZURE_AI_ENDPOINT"),
                 credential=AzureKeyCredential(os.getenv("AZURE_AI_API_KEY")),
                 model_name=model,
@@ -59,23 +82,21 @@ def get_chat(backend: str = "mlx", model: str = None, **kwargs) -> BaseChatModel
     elif backend == "mlx":
         from langchain_community.chat_models import ChatMLX
         from langchain_community.llms.mlx_pipeline import MLXPipeline
-        model = model or os.getenv("MLX_MODEL_PATH")
-        GEMMA3_KWARGS = {
-            "max_tokens": 4096,
-            "verbose": True,
-            "temp": 1.0,
-            "top_p": 0.95,
-            "min_p": 0.00,
-            "top_k": 64,
-        }
-        llm = MLXPipeline.from_model_id(model_id=model, cache=True, pipeline_kwargs=kwargs)
-        return ChatMLX(llm=llm, **kwargs)
+
+        llm = MLXPipeline.from_model_id(
+            model_id=model, cache=True, pipeline_kwargs=kwargs
+        )
+        instance = ChatMLX(llm=llm, **kwargs)
     elif backend == "ollama":
         from langchain_ollama import ChatOllama
-        model = model or os.getenv("OLLAMA_MODEL")
-        return ChatOllama(model=model, **kwargs)
+
+        instance = ChatOllama(model=model, num_ctx=128000, **kwargs)
     else:
         raise ValueError(f"Unsupported backend: {backend}")
+
+    # Cache the instance
+    _chat_instances[instance_key] = instance
+    return instance
 
 
 def extract_json_from_response(response: str) -> str:
@@ -98,8 +119,8 @@ def extract_json_from_response(response: str) -> str:
 class JsonOutputParser(BaseOutputParser[str]):
     def parse(self, text: str) -> str:
         json_str = extract_json_from_response(text)
-        json.loads(json_str)
-        return json_str
+        return json.loads(json_str)
+        
 
     @property
     def _type(self) -> str:

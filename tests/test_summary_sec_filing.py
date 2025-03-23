@@ -48,10 +48,10 @@ def load_sec_filing(company: str) -> List[Document]:
         return []
 
 
-def map_reduce_summarize_sec_filing(documents: List[Document], chunk_size: int = 8000):
+def map_reduce_summarize_sec_filing(documents: List[Document], chunk_size: int = 64000):
     """Implement map-reduce summarization using langchain with SEC filing-specific prompts"""
     # Initialize the LLM
-    llm = get_chat(backend="ollama", model="gemma3:4b-it-q8_0")
+    llm = get_chat(backend="ollama", model="glm4:9b-chat-q8_0")
 
     # Create text splitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(
@@ -131,7 +131,7 @@ def main():
 
     # Load SEC filing
     logger.info(f"Loading SEC filing from edgar ...")
-    documents = load_sec_filing("NVDA")
+    documents = load_sec_filing("ACHR")
     logger.info(f"Loaded {len(documents)} documents")
 
     if not documents:

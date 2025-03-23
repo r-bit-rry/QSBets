@@ -11,7 +11,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from ml_serving.ai_service import consult
 
 
-
 class TestMlxConsult(unittest.TestCase):
     """Test class for testing the MLX consult functionality"""
 
@@ -19,7 +18,7 @@ class TestMlxConsult(unittest.TestCase):
         """Setup test environment"""
         # Load environment variables
         load_dotenv()
-        self.test_file = os.path.join(os.path.dirname(__file__), "MRVL_2025-03-16.yaml")
+        self.test_file = os.path.join(os.path.dirname(__file__), "SMCI_2025-03-23.yaml")
 
     def test_consult_basic(self):
         """Test that the consult function returns valid results"""
@@ -41,13 +40,13 @@ class TestMlxConsult(unittest.TestCase):
                 self.assertIn("rating", result)
 
 
-def test_mlx_consult():
+def test_consult():
     """
     Stand-alone test function to demonstrate the use of the consult function with sample data
     Can be run directly without unittest framework
     """
     start_time = datetime.now()
-    print(f"Starting MLX stock analysis test at: {start_time}")
+    print(f"Starting stock analysis test at: {start_time}")
 
     # Get the path to the test file
     current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -67,7 +66,7 @@ def test_mlx_consult():
 
 if __name__ == "__main__":
     # If run directly, perform the stand-alone test
-    test_mlx_consult()
+    test_consult()
     
     # To run the unittest suite, comment the above and uncomment below
     # unittest.main()

@@ -1,0 +1,319 @@
+description: Super Micro Computer Inc provides high-performance server technology services to cloud computing data center Big Data high performance computing and Internet of Things embedded markets. Its solutions include server storage blade and workstations to full racks networking devices and server management software. The firm follows a modular architectural approach which provides flexibility to deliver customized solutions. More than half of the firm revenue is generated in the United States with the rest coming from Europe Asia and other regions.
+meta:
+  symbol: SMCI
+  name: Super Micro Computer Inc. Common Stock
+  lastsale: $39.10
+  netchange: -1.0
+  pctchange: -2.494
+  volume: 43863854.0
+  marketCap: 23205120863.0
+  country: United States
+  ipoyear: '2020'
+  industry: Computer Manufacturing
+  sector: Technology
+  url: /market-activity/stocks/smci
+technical_indicators:
+  rsi: 47.86
+  macd:
+    macd: -0.25
+    signal: 0.27
+    hist: -0.52
+    hist_prev: -0.54
+    macd_trend: down
+  sma_20: 41.93
+  sma_50: 38.24
+  sma_100: 35.6
+  bollinger_bands:
+    upper: 52.36
+    middle: 41.93
+    lower: 31.51
+  volume_profile:
+    avg_volume: 81641194.46
+    recent_volume: 43863850.0
+    relative_volume: 0.54
+    volume_trend: flat
+  ema_20: 40.73
+  atr: 4.37
+  adx: 13.72
+  stochastic_14_3_3:
+    stochastic_k: 39.67
+    stochastic_d: 35.56
+  cci: -45.98
+  support_resistance:
+    supports:
+    - 34.51
+    - 35.36
+    - 37.5
+    resistances:
+    - 66.44
+    - 56.19
+    - 44.99
+historical_quotes:
+  03/21/2025:
+    close: 42.15
+    volume: 64539600.0
+    open: 39.26
+    high: 42.63
+    low: 38.91
+  03/20/2025:
+    close: 39.1
+    volume: 43863850.0
+    open: 39.81
+    high: 40.7
+    low: 38.55
+  03/19/2025:
+    close: 40.1
+    volume: 60767760.0
+    open: 38.79
+    high: 41.31
+    low: 38.15
+  03/18/2025:
+    close: 37.9
+    volume: 53505540.0
+    open: 41.07
+    high: 41.23
+    low: 37.85
+  03/17/2025:
+    close: 41.94
+    volume: 40651060.0
+    open: 42.68
+    high: 43.1699
+    low: 40.9
+technical_analysis:
+- RSI at 47.86 is neutral
+- MACD (-0.25) below signal line
+- Price ($42.15) above SMA20 ($41.93)
+- Price ($42.15) above SMA50 ($38.24)
+- Price ($42.15) above SMA100 ($35.60)
+- Strong uptrend with SMA20 > SMA50 > SMA100
+- Price ($42.15) above BB middle band, showing upward momentum
+- ADX at 13.72 indicates ranging/sideways market
+- Bullish stochastic crossover with %K at 39.7 crossing above %D at 35.6
+- CCI at -46.0 shows mild bearish momentum
+- Poor risk/reward ratio (0.6:1) with support at $37.50 and resistance at $44.99
+macroeconomic_context:
+  interest_rates:
+    fed_funds: 4.33
+    10y_treasury: 4.24
+    yield_curve: 0.29
+  inflation:
+    cpi_annual: 2.81
+    core_cpi: 3.14
+  debt_cycle:
+    position: Late Cycle (High Debt, High Rates)
+    public_debt_to_gdp: 121.87
+    household_debt_service_ratio: 11.28
+  liquidity:
+    conditions: Neutral
+    m2_growth: 3.29
+    fed_balance_sheet_change: -10.09
+  economy:
+    gdp_growth: 2.3
+revenue_earnings:
+- quarter: September
+  revenue: 5937000000.0
+  eps: 0.67 (09/30/2024)
+  dividends: N/A
+- quarter: December
+  revenue: 5677000000.0
+  eps: 0.50 (12/31/2024)
+  dividends: N/A
+- quarter: June (FYE)
+  revenue: null
+  eps: null
+  dividends: ''
+- quarter: March
+  revenue: null
+  eps: null
+  dividends: ''
+- quarter: Totals
+  revenue: 11615000000.0
+  eps: 1.17
+  dividends: N/A
+short interest:
+- settlementDate: 02/28/2025
+  interest: 102,964,358
+  avgDailyShareVolume: 152,200,956
+  daysToCover: 1.0
+- settlementDate: 02/14/2025
+  interest: 102,146,897
+  avgDailyShareVolume: 98,650,198
+  daysToCover: 1.035445
+- settlementDate: 01/31/2025
+  interest: 91,656,968
+  avgDailyShareVolume: 33,574,287
+  daysToCover: 2.729975
+- settlementDate: 01/15/2025
+  interest: 77,147,435
+  avgDailyShareVolume: 31,587,874
+  daysToCover: 2.442312
+institutional_holdings:
+  ownership_summary:
+    Institutional Ownership: 0.5104
+    Total Shares Outstanding (millions): '593'
+    Total Value of Holdings (millions): 12767.0
+  key_transactions:
+  - ownerName: Vanguard Group Inc
+    date: 12/31/2024
+    sharesHeld: 61,992,493
+    sharesChange: 518,293
+    sharesChangePCT: 0.843%
+    marketValue: $2,612,984
+  - ownerName: Blackrock, Inc.
+    date: 12/31/2024
+    sharesHeld: 41,543,545
+    sharesChange: 252,005
+    sharesChangePCT: 0.61%
+    marketValue: $1,751,060
+  - ownerName: State Street Corp
+    date: 12/31/2024
+    sharesHeld: 21,898,225
+    sharesChange: 516,805
+    sharesChangePCT: 2.417%
+    marketValue: $923,010
+  - ownerName: Geode Capital Management, Llc
+    date: 12/31/2024
+    sharesHeld: 12,846,717
+    sharesChange: 186,317
+    sharesChangePCT: 1.472%
+    marketValue: $541,489
+  - ownerName: Fmr Llc
+    date: 12/31/2024
+    sharesHeld: 9,608,569
+    sharesChange: 9,608,569
+    sharesChangePCT: New
+    marketValue: $405,001
+institutional_analysis: High institutional ownership (51.0%) with balanced institutional activity
+insider_trading:
+  recent_transactions:
+  - insider: BLAIR ROBERT L
+    relation: Director
+    lastDate: 2/28/2025
+    transactionType: Sell
+    ownType: Direct
+    sharesTraded: 19,460
+    lastPrice: $42.46
+    sharesHeld: '0'
+  - insider: BLAIR ROBERT L
+    relation: Director
+    lastDate: 2/28/2025
+    transactionType: Option Execute
+    ownType: Direct
+    sharesTraded: 13,600
+    lastPrice: $26.25
+    sharesHeld: 19,460
+  - insider: KAO GEORGE
+    relation: Officer
+    lastDate: 2/26/2025
+    transactionType: Sell
+    ownType: Direct
+    sharesTraded: 71,720
+    lastPrice: $50.48
+    sharesHeld: 19,449
+  - insider: LIU LIANG CHIU-CHU SARA
+    relation: Director
+    lastDate: 2/26/2025
+    transactionType: Sell
+    ownType: Direct
+    sharesTraded: 46,293
+    lastPrice: $50.17
+    sharesHeld: '0'
+  - insider: LIANG CHARLES
+    relation: Officer
+    lastDate: 2/26/2025
+    transactionType: Sell
+    ownType: Indirect
+    sharesTraded: 46,293
+    lastPrice: $50.17
+    sharesHeld: '0'
+  net_insider_activity_3m: (196,455)
+  net_insider_activity_12m: (2,068,297)
+insider_analysis: 'Significant insider selling: 4 sells vs 0 buys, net 196,455 shares'
+preliminary_rating:
+  rating: 76
+  confidence: 5
+  technical_score: 61/70
+  fundamental_score: 15/30
+  explanations:
+  - RSI neutral (47.86)
+  - Bearish MACD signal
+  - Bullish moving average alignment (4/4)
+  - Price above Bollinger middle band (bullish)
+  - No clear trend with ADX 13.72
+  - Bullish stochastic crossover
+  - Poor risk/reward ratio (0.6:1) with support at $37.50 and resistance at $44.99
+  - 'Significant insider selling: 4 sells vs 0 buys, net 196,455 shares'
+  - High institutional ownership (51.0%) with balanced institutional activity
+  - Revenue-generating company
+preliminary_entry_strategy:
+  entry_price: Current price $42.15 or pullback to SMA20 ($41.93)
+  entry_timing: Immediate or on pullback
+  technical_indicators:
+  - SMA20 support at $41.93
+  - Look for volume > 81.64119446M shares
+  - Support level at $37.50
+  - Resistance level at $44.99
+preliminary_exit_strategy:
+  profit_target: $44.99 (+6.7%)
+  stop_loss: $37.50 (-12.4%)
+  time_horizon: null
+  exit_conditions:
+  - Close below SMA100
+  - RSI > 70 (overbought)
+  - Stochastic K line crosses below 80 from above
+  profit_targets:
+    conservative: $50.89 (+20.7%)
+    aggressive: $55.26 (+31.1%)
+  stop_options:
+    tight: $37.78 (-11.6%)
+    standard: $37.50 (-12.4%)
+reddit_wallstreetbets_sentiment:
+  sentiment_score[-10,10]: 0
+  positive_mentions: '23'
+  neutral_mentions: '69'
+  negative_mentions: '8'
+  total: '100'
+  next_earnings_date: '2025-04-28'
+  calls_to_put_ratio: '0.54823933'
+  avg_iv_30d: 83.81999731063843
+  unusual_option_volume: null
+summaries: '**Super Micro Computer Inc. (SMCI) - Comprehensive Summary**
+
+
+  - **Market Performance**: SMCI surged over 7% on the back of an upgrade from JPMorgan Chase, which raised its stock rating from underweight to neutral. The company outperformed the S&P 500 and other tech stocks such as Micron Technology (-8%) and Palantir Technologies (-2.8%).
+
+
+  - **Revenue & Earnings**: Annual revenue projections are set at $8.525 billion with a significant decrease of 59.05%. Non-GAAP EPS is projected at $12.89, reflecting an improvement from previous earnings.
+
+
+  - **Valuation**: SMCI’s current valuation is considered low relative to historical levels, with Northland Securities forecasting a $70 price target, indicating a potential 66% upside.
+
+
+  - **P/E Ratio**: The P/E ratio is not explicitly stated but given the low valuation and strong EPS projection, it suggests a relatively high multiple.
+
+
+  - **Margins & Margins Growth**: Margins are not detailed in the summaries provided.
+
+
+  - **Risks**: Accounting controversies were previously addressed by an external committee, clearing the company of non-compliance. Geopolitical risks and market volatility remain potential concerns due to Middle Eastern tensions and economic uncertainty.
+
+
+  - **Opportunities**: Strong demand for AI infrastructure and partnerships with NVIDIA could fuel revenue growth. The introduction of new Petascale storage servers optimized for high-performance workloads and energy-efficient technology solutions represent significant opportunities.
+
+
+  - **Year-over-Year Comparisons**: SMCI''s stock has risen over 300% in the past year, now sitting 50% above its start in 2024. Year-to-date, it is up by 37.99%.
+
+
+  - **Analyst Forecasts & Upgrades**: JPMorgan Chase upgraded SMCI from underweight to neutral with a price target that implies a 38.07% upside, averaging $53.98 per share.
+
+
+  - **Investor Sentiment**: Fund sentiment indicates an increase in institutional ownership and a bullish outlook, evidenced by a put/call ratio of 0.87.
+
+
+  - **Sector Performance**: SMCI is outperforming peers in the Technology & Communications sector with a year-to-date return of 28.33%.
+
+
+  - **Innovation**: Supermicro has launched new systems optimized for AI workloads, utilizing NVIDIA''s technology and focusing on energy efficiency, showcasing a commitment to innovation and sustainability.
+
+
+  - **Investment Model Rankings**: SMCI is ranked highly under Validea’s Patient Investor model, which aligns with Warren Buffett’s investment strategy, indicating long-term profitability and reasonable valuations.'

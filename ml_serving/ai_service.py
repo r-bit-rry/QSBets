@@ -3,7 +3,6 @@ Service layer for AI operations using the model server abstraction.
 Provides high-level methods for consulting and summarization.
 """
 import asyncio
-import json
 
 import time
 from typing import Any, Dict, Callable, List, Union
@@ -25,13 +24,13 @@ logger = get_logger("qsbets")
 DEFAULT_MAX_RETRIES = 3
 DEFAULT_BASE_DELAY = 2.0
 
-# @cached(HOURS2_TTL)
+@cached(HOURS2_TTL)
 def map_reduce_summarize(
     documents: List[Document],
     stock: str,
     callback: Callable = StrOutputParser(),
-    backend: str = "mlx",
-    chunk_size: int = 10000,
+    backend: str = "ollama",
+    chunk_size: int = 32000,
     batch_size: int = 4,  # Control parallel processing
 ) -> str:
     """Implement map-reduce summarization using langchain with optimized memory usage"""
@@ -64,12 +63,13 @@ def map_reduce_summarize(
 
     messages = ChatPromptTemplate.from_messages(
         [
-            # ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
             ("user", map_template),
         ]
     )
     map_chain = messages | llm | callback
-
+    map_chain = map_chain.with_retry(
+        stop_after_attempt=DEFAULT_MAX_RETRIES,
+    )
     # Reduce: Combine summaries
     reduce_template = """You are given a set of summaries extracted from a longer text about stock news.
     Create a concise, technical, comprehensive summary that combines all the important information about this stock {stock}.
@@ -82,15 +82,16 @@ def map_reduce_summarize(
 
     messages = ChatPromptTemplate.from_messages(
         [
-            # ("system",STOCK_SUMMARIZE_SYSTEM_PROMPT),
             ("user", reduce_template)
         ]
     )
     reduce_chain = messages | llm | callback
+    reduce_chain = reduce_chain.with_retry(
+        stop_after_attempt=DEFAULT_MAX_RETRIES,
+    )
 
     logger.info("Starting map step...")
 
-    # Option 1: Process in batches to control memory usage
     async def process_chunks_in_batches():
         mapped_results = [None] * len(splits)  # Pre-allocate result list
 
@@ -126,26 +127,6 @@ def map_reduce_summarize(
 
         # Remove any None values (shouldn't happen but just in case)
         return [r for r in mapped_results if r is not None]
-
-    # Option 2: Serial processing with streaming for very large datasets
-    # async def process_chunks_serially():
-    #     mapped_results = []
-    #     for i, split in enumerate(splits):
-    #         logger.info(f"Processing chunk {i+1}/{len(splits)}...")
-    #         try:
-    #             # Process one at a time to minimize memory usage
-    #             result = await map_chain.ainvoke(
-    #                 {"text": split.page_content, "stock": stock}
-    #             )
-    #             mapped_results.append(result)
-    #             logger.info(f"Chunk {i+1}/{len(splits)} processed")
-    #         except Exception as e:
-    #             logger.error(f"Error processing chunk {i+1}: {e}")
-    #             # Fallback to sync processing
-    #             result = map_chain.invoke({"text": split.page_content, "stock": stock})
-    #             mapped_results.append(result)
-    #             logger.info(f"Chunk {i+1} processed (sequential fallback)")
-    #     return mapped_results
 
     # Choose processing strategy based on number of chunks
     if len(splits) > 20:  # Many chunks - use batched approach
@@ -233,7 +214,7 @@ def summarize(text: str, callback: Callable = None,
 def consult(
     filepath: str,
     metadata: Dict[str, Any] = None,
-    callback: Callable = JsonOutputParser(),
+    callback: Callable = StrOutputParser(),
     backend: str = "mlx",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:
@@ -267,30 +248,24 @@ def consult(
 
     # Determine which prompt to use based on purchase_price presence
     purchase_price = metadata.get("purchase_price")
-    try:
-        if purchase_price is not None and str(purchase_price).strip() and float(purchase_price) > 0:
-            formatted_prompt = OWNERSHIP_PROMPT.format(loadedDocument=document, purchase_price=purchase_price)
-        else:
-            formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
-    except (ValueError, TypeError):
-        formatted_prompt = CONSULT_PROMPT_V7.format(loadedDocument=document)
 
     prompt = OWNERSHIP_PROMPT if purchase_price else CONSULT_PROMPT_V7
 
     messages = ChatPromptTemplate.from_messages(
         [
-            # ("system",STOCK_SUMMARIZE_SYSTEM_PROMPT),
             ("user", prompt.template)
         ]
     )
     # Get model server
     llm = get_chat(backend=backend, system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
-    llm.with_retry(
+    chain = messages | llm | StrOutputParser() | JsonOutputParser() 
+    chain = chain.with_retry(
         stop_after_attempt=max_retries
     )
-    chain = messages | llm | StrOutputParser() | callback
     res = chain.invoke({"loadedDocument": document, "purchase_price": purchase_price})
     if "error" in res:
         raise Exception(f"Model server error: {res['error']}")
-    # json_str = extract_json_from_response(res["content"])
-    return json.loads(res)
+    if callback:
+        callback(res)
+
+    return res

@@ -4,7 +4,7 @@ import sys
 import time
 from typing import Any, Dict, List, Optional
 
-from ml_serving.utils import get_chat
+from src.ml_serving.utils import get_chat
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
@@ -17,8 +17,7 @@ from langchain_core.language_models import LLM
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from collectors.nasdaq import fetch_stock_news
-from ml_serving.config import initialize_model_server
+from src.collectors.nasdaq import fetch_stock_news
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
@@ -38,7 +37,6 @@ class MLXServerLLM(LLM):
             self.model_server = get_chat(model=model_path)
         else:
             # Use default initialization
-            initialize_model_server("mlx")
             self.model_server = get_chat()
 
     def _llm_type(self) -> str:
@@ -131,7 +129,6 @@ def main():
     """Main function to test map-reduce summarization of stock news"""
     # Initialize model server
     print("Initializing MLX model server...")
-    initialize_model_server("mlx")
     
     # Fetch news for NVDA
     print("Fetching news for NVDA...")

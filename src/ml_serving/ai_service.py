@@ -35,7 +35,9 @@ def map_reduce_summarize(
 ) -> str:
     """Implement map-reduce summarization using langchain with optimized memory usage"""
     llm = get_chat(
-        backend=backend, system_message=SystemMessage(STOCK_SUMMARIZE_SYSTEM_PROMPT)
+        backend=backend,
+        model="glm4:9b-chat-q8_0",
+        system_message=SystemMessage(STOCK_SUMMARIZE_SYSTEM_PROMPT)
     )
 
     # Create text splitter for chunking
@@ -146,7 +148,7 @@ def map_reduce_summarize(
 
 
 def summarize(text: str, callback: Callable = None, 
-              backend: str = "mlx", metadata: Dict[str, Any] = None) -> Union[Dict[str, Any], None]:
+              backend: str = "ollama", metadata: Dict[str, Any] = None) -> Union[Dict[str, Any], None]:
     """
     Summarize given text using the configured model server.
     
@@ -170,7 +172,7 @@ def summarize(text: str, callback: Callable = None,
     ]
 
     # Get model server
-    model_server = get_chat(backend=backend)
+    model_server = get_chat(backend=backend, model="glm4:9b-chat-q8_0")
 
     # Process asynchronously if callback provided
     if callback:
@@ -215,7 +217,7 @@ def consult(
     filepath: str,
     metadata: Dict[str, Any] = None,
     callback: Callable = StrOutputParser(),
-    backend: str = "mlx",
+    backend: str = "ollama",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:
     """
@@ -257,7 +259,7 @@ def consult(
         ]
     )
     # Get model server
-    llm = get_chat(backend=backend, system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
+    llm = get_chat(backend=backend, model="finr1", system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
     chain = messages | llm | StrOutputParser() | JsonOutputParser() 
     chain = chain.with_retry(
         stop_after_attempt=max_retries

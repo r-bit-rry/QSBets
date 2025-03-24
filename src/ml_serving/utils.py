@@ -90,7 +90,7 @@ def get_chat(backend: str = "mlx", model: str = None, **kwargs) -> BaseChatModel
     elif backend == "ollama":
         from langchain_ollama import ChatOllama
 
-        instance = ChatOllama(model=model, num_ctx=128000, **kwargs)
+        instance = ChatOllama(model=model, num_ctx=32768, **kwargs)
     else:
         raise ValueError(f"Unsupported backend: {backend}")
 

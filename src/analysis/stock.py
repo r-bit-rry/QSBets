@@ -11,8 +11,8 @@ logger = get_logger(__name__)
 
 from analysis.macroeconomic import get_macroeconomic_context
 from ml_serving.ai_service import map_reduce_summarize, summarize
-from social.social import fetch_stocks_sentiment, fetch_stocks_social
-from nasdaq import (
+from collectors.social import fetch_stocks_sentiment, fetch_stocks_social
+from collectors.nasdaq import (
     fetch_historical_quotes,
     fetch_revenue_earnings,
     fetch_short_interest,

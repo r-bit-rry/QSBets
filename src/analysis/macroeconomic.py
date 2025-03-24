@@ -1,14 +1,11 @@
 import os
-import traceback
 from dotenv import load_dotenv
-import pandas as pd
-import numpy as np
 from fredapi import Fred
 from datetime import datetime, timedelta
 import requests
 from trafilatura import extract
 import json
-from cache.cache import cached, DAY_TTL
+from storage.cache import cached, DAY_TTL
 from logger import get_logger
 
 logger = get_logger(__name__)

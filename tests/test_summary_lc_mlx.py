@@ -17,7 +17,7 @@ from langchain_core.language_models import LLM
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import PromptTemplate
 
-from nasdaq import fetch_stock_news
+from collectors.nasdaq import fetch_stock_news
 from ml_serving.config import initialize_model_server
 from langchain_core.messages import SystemMessage, HumanMessage
 

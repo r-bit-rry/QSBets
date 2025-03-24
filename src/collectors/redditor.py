@@ -15,7 +15,7 @@ from rich.progress import track
 import threading
 from threading import Event
 import time
-from chromadb_integration import ChromaDBSaver
+from storage.chromadb_integration import ChromaDBSaver
 from logger import get_logger
 
 console = Console(record=True)

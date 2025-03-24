@@ -3,8 +3,8 @@
 import json
 import pandas as pd
 import talib
-from cache.cache import cached, DAY_TTL
-from nasdaq import fetch_historical_quotes
+from storage.cache import cached, DAY_TTL
+from collectors.nasdaq import fetch_historical_quotes
 from logger import get_logger
 
 logger = get_logger(__name__)

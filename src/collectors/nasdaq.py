@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import logging
-import traceback
 from dotenv import load_dotenv
 import pandas as pd
 import requests
@@ -9,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from trafilatura import extract
 import time
 import json
-from cache.cache import cached, DAY_TTL, MONTH_TTL
+from storage.cache import cached, DAY_TTL, MONTH_TTL
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -388,6 +387,7 @@ def fetch_description(symbol: str) -> str:
     company_description = data.get("CompanyDescription", {}).get("value", "")
     return company_description
 
+# Deprecated in favor of edgartools
 @cached(ttl_seconds=DAY_TTL)
 def fetch_sec_filings(symbol: str) -> str:
     """

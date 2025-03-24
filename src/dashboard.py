@@ -6,9 +6,9 @@ import os
 import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-from nasdaq import fetch_historical_quotes, fetch_nasdaq_data, fetch_stock_news, fetch_stock_press_releases
+from collectors.nasdaq import fetch_historical_quotes, fetch_nasdaq_data, fetch_stock_news, fetch_stock_press_releases
 from analysis.ta import fetch_technical_indicators, prepare_dataframe
-from cache.cache import cached, DAY_TTL
+from storage.cache import cached, DAY_TTL
 
 # Configure page settings
 st.set_page_config(page_title="QSBets Dashboard", layout="wide", initial_sidebar_state="expanded")

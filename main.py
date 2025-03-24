@@ -9,9 +9,9 @@ import signal
 import sys
 from dotenv import load_dotenv
 
-from event_driven.event_bus import EventBus, EventType
-from event_driven.stock_event_handlers import initialize as init_stock_system, stock_system
-from logger import get_logger
+from src.event_driven.event_bus import EventBus, EventType
+from src.event_driven.stock_event_handlers import initialize as init_stock_system, stock_system
+from src.logger import get_logger
 
 def parse_args():
     """Parse command line arguments"""

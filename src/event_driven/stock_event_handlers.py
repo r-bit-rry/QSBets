@@ -11,8 +11,8 @@ import pandas as pd
 from event_driven.event_bus import EventBus, EventType
 from analysis.stock import Stock
 from ml_serving.ai_service import consult
-from social.social import get_sentiment_df
-from nasdaq import fetch_nasdaq_data
+from collectors.nasdaq import fetch_nasdaq_data
+from collectors.social import get_sentiment_df
 from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
 from logger import get_logger
 FOUR_HOURS_SECONDS = 14400

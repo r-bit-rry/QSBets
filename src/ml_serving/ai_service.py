@@ -30,7 +30,7 @@ def map_reduce_summarize(
     stock: str,
     callback: Callable = StrOutputParser(),
     backend: str = "ollama",
-    chunk_size: int = 32000,
+    chunk_size: int = 16000,
     batch_size: int = 4,  # Control parallel processing
 ) -> str:
     """Implement map-reduce summarization using langchain with optimized memory usage"""
@@ -216,7 +216,7 @@ def summarize(text: str, callback: Callable = None,
 def consult(
     filepath: str,
     metadata: Dict[str, Any] = None,
-    callback: Callable = StrOutputParser(),
+    callback: Callable = None,
     backend: str = "ollama",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:

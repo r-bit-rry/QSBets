@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 # Add the project root to the path to allow importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ml_serving.ai_service import consult
+from src.ml_serving.ai_service import consult
 
 
 class TestMlxConsult(unittest.TestCase):

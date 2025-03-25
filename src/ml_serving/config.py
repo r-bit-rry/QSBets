@@ -43,10 +43,16 @@ QWQ_KWARGS = {
 # https://huggingface.co/mingz2022/Fin-R1-mlx-8Bit
 FIN_R1_ARGS = {
     "temp": 0.7,
+    "temperature": 0.7,
     "top_p": 0.8,
-    "max_tokens": 4096,
-    "repetition_penalty": 1.05, 
-    "repetition_context_size": 20
+    "max_tokens": 16000,
+    "num_predict": 2048,
+    "repetition_penalty": 1.05,
+    "repeat_penalty": 1.05,
+    "repetition_context_size": 20,
+    "repeat_last_n": 20,
+    "keep_alive": "10m",
+    "format": "json",
 }
 GEMMA3_KWARGS = {
     "max_tokens": 4096,

@@ -31,7 +31,7 @@ def dump_failed_text(text: str):
         file.write(text)
 
 
-def get_chat(backend: str = "mlx", model: str = None, **kwargs) -> BaseChatModel:
+def get_chat(backend: str = "ollama", model: str = None, **kwargs) -> BaseChatModel:
     """
     Get the chat model based on the backend.
     Implements a singleton pattern to avoid multiple instances of the same model.
@@ -90,7 +90,7 @@ def get_chat(backend: str = "mlx", model: str = None, **kwargs) -> BaseChatModel
     elif backend == "ollama":
         from langchain_ollama import ChatOllama
 
-        instance = ChatOllama(model=model, num_ctx=32768, **kwargs)
+        instance = ChatOllama(model=model, num_ctx=16384, **kwargs)
     else:
         raise ValueError(f"Unsupported backend: {backend}")
 
@@ -119,7 +119,12 @@ def extract_json_from_response(response: str) -> str:
 class JsonOutputParser(BaseOutputParser[str]):
     def parse(self, text: str) -> str:
         json_str = extract_json_from_response(text)
-        return json.loads(json_str)
+        print(json_str)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            dump_failed_text(text)
+            raise ValueError("Failed to decode JSON from the response.") from e
         
 
     @property

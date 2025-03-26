@@ -9,6 +9,9 @@ logger = get_logger(__name__)
 
 def interpret_rsi(rsi):
     """Interpret RSI value and return standardized assessment"""
+    if isinstance(rsi, list) and rsi:
+        rsi = rsi[-1]  # Use the most recent RSI value
+
     if rsi is None:
         return {"status": "unknown", "strength": 0, "description": "No RSI data available"}
     
@@ -25,6 +28,9 @@ def interpret_rsi(rsi):
 
 def interpret_macd(macd_data):
     """Interpret MACD values and return standardized assessment"""
+    if isinstance(macd_data, list) and macd_data:
+        macd_data = macd_data[-1]  # Use the most recent MACD values
+    
     if not macd_data or None in (macd_data.get('macd'), macd_data.get('signal')):
         return {"status": "unknown", "strength": 0, "description": "No MACD data available"}
     
@@ -49,6 +55,12 @@ def interpret_macd(macd_data):
 
 def interpret_moving_averages(price, sma_20, sma_50, sma_100):
     """Analyze price relationship to multiple moving averages"""
+    if isinstance(sma_20, list) and sma_20:
+        sma_20 = sma_20[-1]
+    if isinstance(sma_50, list) and sma_50:
+        sma_50 = sma_50[-1]
+    if isinstance(sma_100, list) and sma_100:
+        sma_100 = sma_100[-1]
     results = []
     
     # Check price relative to moving averages
@@ -77,6 +89,8 @@ def interpret_moving_averages(price, sma_20, sma_50, sma_100):
 
 def interpret_bollinger_bands(price, bb_data):
     """Interpret price position relative to Bollinger Bands"""
+    if isinstance(bb_data, list) and bb_data:
+        bb_data = bb_data[-1]
     if not bb_data:
         return {"status": "unknown", "strength": 0, "description": "No Bollinger Bands data"}
         
@@ -97,6 +111,8 @@ def interpret_bollinger_bands(price, bb_data):
 
 def interpret_adx(adx):
     """Interpret ADX (Average Directional Index) for trend strength"""
+    if isinstance(adx, list) and adx:
+        adx = adx[-1]
     if adx is None:
         return {"status": "unknown", "strength": 0, "description": "No ADX data available"}
     
@@ -150,6 +166,8 @@ def interpret_insider_activity(insider_data):
 
 def interpret_stochastic(stoch_data):
     """Interpret Stochastic Oscillator values"""
+    if isinstance(stoch_data, list) and stoch_data:
+        stoch_data = stoch_data[-1]
     if not stoch_data:
         return {
             "status": "unknown",
@@ -306,6 +324,8 @@ def interpret_institutional_holdings(holdings_data):
 
 def interpret_support_resistance(price, support_resistance_data):
     """Analyze support and resistance levels relative to current price"""
+    if isinstance(support_resistance_data, list) and support_resistance_data:
+        support_resistance_data = support_resistance_data[-1]
     if not support_resistance_data:
         return {"status": "unknown", "description": "No support/resistance data available"}
     
@@ -371,6 +391,8 @@ def interpret_support_resistance(price, support_resistance_data):
 
 def interpret_cci(cci):
     """Interpret Commodity Channel Index (CCI)"""
+    if isinstance(cci, list) and cci:
+        cci = cci[-1]
     if cci is None:
         return {"status": "unknown", "strength": 0, "description": "No CCI data available"}
     
@@ -384,15 +406,7 @@ def interpret_cci(cci):
         return {"status": "bearish", "strength": 1, "description": f"CCI at {cci:.1f} shows mild bearish momentum"}
 
 def generate_preliminary_rating(stock_data):
-    """
-    Calculate preliminary rating score (0-100) based on technical and fundamental factors
-    
-    Args:
-        stock_data: Dictionary containing parsed stock data
-        
-    Returns:
-        dict: Rating score and explanations
-    """
+    """Calculate preliminary rating score (0-100) based on technical and fundamental factors"""
     tech_score = 0
     fund_score = 0
     max_tech = 70
@@ -403,164 +417,152 @@ def generate_preliminary_rating(stock_data):
     indicators = stock_data.get('technical_indicators', {})
     price_data = stock_data.get('historical_quotes', {})
     
-    if price_data and indicators:
-        try:
-            # Get most recent price
-            recent_date = list(price_data.keys())[0]
-            current_price = price_data[recent_date]['close']
-            
-            # Analyze technical indicators
-            rsi_analysis = interpret_rsi(indicators.get('rsi'))
-            if rsi_analysis['status'] == 'oversold':
-                tech_score += 20
-                explanations.append(f"RSI oversold ({indicators.get('rsi'):.2f})")
-            elif rsi_analysis['status'] == 'overbought':
-                tech_score += 5
-                explanations.append(f"RSI overbought ({indicators.get('rsi'):.2f})")
-            elif rsi_analysis['status'] == 'bullish':
-                tech_score += 15
-                explanations.append(f"RSI bullish ({indicators.get('rsi'):.2f})")
-            elif rsi_analysis['status'] == 'bearish':
-                tech_score += 10
-                explanations.append(f"RSI bearish ({indicators.get('rsi'):.2f})")
-            else:
-                tech_score += 12
-                explanations.append(f"RSI neutral ({indicators.get('rsi'):.2f})")
-            
-            # MACD analysis
-            macd_analysis = interpret_macd(indicators.get('macd', {}))
-            if macd_analysis['status'] == 'bullish' and macd_analysis['strength'] == 2:
-                tech_score += 15
-                explanations.append("Strong bullish MACD signal")
-            elif macd_analysis['status'] == 'bullish':
-                tech_score += 12
-                explanations.append("Bullish MACD signal")
-            elif macd_analysis['status'] == 'bearish' and macd_analysis['strength'] == 2:
-                tech_score += 5
-                explanations.append("Strong bearish MACD signal")
-            elif macd_analysis['status'] == 'bearish':
-                tech_score += 8
-                explanations.append("Bearish MACD signal")
-            else:
-                tech_score += 10
-                explanations.append("Neutral MACD signal")
-                
-            # Moving averages
-            ma_analyses = interpret_moving_averages(
-                current_price,
-                indicators.get('sma_20'),
-                indicators.get('sma_50'),
-                indicators.get('sma_100')
-            )
-            
-            ma_bullish = sum(1 for ma in ma_analyses if ma['status'] == 'bullish')
-            ma_bearish = sum(1 for ma in ma_analyses if ma['status'] == 'bearish')
-            
-            if ma_bullish > ma_bearish:
-                tech_score += 15
-                explanations.append(f"Bullish moving average alignment ({ma_bullish}/{len(ma_analyses)})")
-            elif ma_bearish > ma_bullish:
-                tech_score += 5
-                explanations.append(f"Bearish moving average alignment ({ma_bearish}/{len(ma_analyses)})")
-            else:
-                tech_score += 10
-                explanations.append("Mixed moving average signals")
-                
-            # Bollinger Bands
-            bb_analysis = interpret_bollinger_bands(current_price, indicators.get('bollinger_bands', {}))
-            if bb_analysis['status'] == 'oversold':
-                tech_score += 15
-                explanations.append("Price below lower Bollinger Band (oversold)")
-            elif bb_analysis['status'] == 'overbought':
-                tech_score += 5
-                explanations.append("Price above upper Bollinger Band (overbought)")
-            elif bb_analysis['status'] == 'bullish':
-                tech_score += 12
-                explanations.append("Price above Bollinger middle band (bullish)")
-            elif bb_analysis['status'] == 'bearish':
-                tech_score += 8
-                explanations.append("Price below Bollinger middle band (bearish)")
-                
-            # ADX (trend strength)
-            adx_analysis = interpret_adx(indicators.get('adx'))
-            if adx_analysis['status'] == 'strong_trend':
-                # Add points based on which direction is trending
-                if ma_bullish > ma_bearish:
-                    tech_score += 5
-                    explanations.append(f"Strong trend with ADX {indicators.get('adx'):.2f} (bullish)")
-                else:
-                    tech_score += 3
-                    explanations.append(f"Strong trend with ADX {indicators.get('adx'):.2f} (bearish)")
-            elif adx_analysis['status'] == 'no_trend':
-                tech_score += 3
-                explanations.append(f"No clear trend with ADX {indicators.get('adx'):.2f}")
-                
-            # NEW: Stochastic analysis
-            stoch_analysis = interpret_stochastic(indicators.get('stochastic_14_3_3', {}))
-            if stoch_analysis['status'] == 'oversold':
-                tech_score += 12
-                explanations.append("Stochastic oversold (bullish)")
-            elif stoch_analysis['status'] == 'overbought':
-                tech_score += 5
-                explanations.append("Stochastic overbought (bearish)")
-            elif stoch_analysis['status'] == 'bullish':
-                tech_score += 8
-                explanations.append("Bullish stochastic crossover")
-            
-            # NEW: CCI analysis
-            cci_analysis = interpret_cci(indicators.get('cci'))
-            if cci_analysis['status'] == 'oversold':
-                tech_score += 10
-                explanations.append("CCI oversold (bullish)")
-            elif cci_analysis['status'] == 'overbought':
-                tech_score += 4
-                explanations.append("CCI overbought (bearish)")
-            
-            # NEW: Support/Resistance analysis
-            sr_analysis = interpret_support_resistance(current_price, indicators.get('support_resistance', {}))
-            if sr_analysis['status'] == 'bullish':
-                tech_score += sr_analysis['strength'] * 5
-                explanations.append(sr_analysis['description'])
-            elif sr_analysis['status'] == 'bearish':
-                tech_score += 3
-                explanations.append(sr_analysis['description'])
-            
-        except (KeyError, IndexError) as e:
-            explanations.append(f"Error analyzing technical indicators: {e}")
-            logger.error(f"Error analyzing technical indicators: {e}")
+    if not price_data or not indicators:
+        return {"rating": 50, "confidence": 1, "technical_score": "0/70", 
+                "fundamental_score": "0/30", "explanations": ["Insufficient data"]}
     
+    try:
+        # Get most recent price
+        recent_date = list(price_data.keys())[0]
+        current_price = price_data[recent_date]['close']
+        
+        # Analyze technical indicators (all interpretation functions handle lists internally)
+        # RSI analysis
+        rsi_analysis = interpret_rsi(indicators.get('rsi'))
+        rsi_value = indicators.get('rsi')
+        if isinstance(rsi_value, list) and rsi_value:
+            rsi_value = rsi_value[-1]
+            
+        if rsi_analysis['status'] == 'oversold':
+            tech_score += 20
+            explanations.append(f"RSI oversold ({rsi_value:.2f})")
+        elif rsi_analysis['status'] == 'overbought':
+            tech_score += 5
+            explanations.append(f"RSI overbought ({rsi_value:.2f})")
+        elif rsi_analysis['status'] == 'bullish':
+            tech_score += 15
+            explanations.append(f"RSI bullish ({rsi_value:.2f})")
+        elif rsi_analysis['status'] == 'bearish':
+            tech_score += 10
+            explanations.append(f"RSI bearish ({rsi_value:.2f})")
+        else:
+            tech_score += 12
+            explanations.append(f"RSI neutral ({rsi_value:.2f})")
+        
+        # MACD analysis
+        macd_analysis = interpret_macd(indicators.get('macd', {}))
+        if macd_analysis['status'] == 'bullish':
+            tech_score += 15 if macd_analysis['strength'] == 2 else 12
+            explanations.append("Strong bullish MACD signal" if macd_analysis['strength'] == 2 else "Bullish MACD signal")
+        elif macd_analysis['status'] == 'bearish':
+            tech_score += 5 if macd_analysis['strength'] == 2 else 8
+            explanations.append("Strong bearish MACD signal" if macd_analysis['strength'] == 2 else "Bearish MACD signal")
+        else:
+            tech_score += 10
+            explanations.append("Neutral MACD signal")
+            
+        # Moving averages
+        ma_analyses = interpret_moving_averages(current_price, 
+                                               indicators.get('sma_20'),
+                                               indicators.get('sma_50'),
+                                               indicators.get('sma_100'))
+        
+        ma_bullish = sum(1 for ma in ma_analyses if ma['status'] == 'bullish')
+        ma_bearish = sum(1 for ma in ma_analyses if ma['status'] == 'bearish')
+        
+        if ma_bullish > ma_bearish:
+            tech_score += 15
+            explanations.append(f"Bullish moving average alignment ({ma_bullish}/{len(ma_analyses)})")
+        elif ma_bearish > ma_bullish:
+            tech_score += 5
+            explanations.append(f"Bearish moving average alignment ({ma_bearish}/{len(ma_analyses)})")
+        else:
+            tech_score += 10
+            explanations.append("Mixed moving average signals")
+            
+        # Bollinger Bands
+        bb_analysis = interpret_bollinger_bands(current_price, indicators.get('bollinger_bands', {}))
+        if bb_analysis['status'] == 'oversold':
+            tech_score += 15
+            explanations.append("Price below lower Bollinger Band (oversold)")
+        elif bb_analysis['status'] == 'overbought':
+            tech_score += 5
+            explanations.append("Price above upper Bollinger Band (overbought)")
+        elif bb_analysis['status'] == 'bullish':
+            tech_score += 12
+            explanations.append("Price above Bollinger middle band (bullish)")
+        elif bb_analysis['status'] == 'bearish':
+            tech_score += 8
+            explanations.append("Price below Bollinger middle band (bearish)")
+            
+        # ADX (trend strength)
+        adx_value = indicators.get('adx')
+        adx_analysis = interpret_adx(indicators.get('adx'))
+        if isinstance(adx_value, list) and adx_value:
+            adx_value = adx_value[-1]
+        if adx_analysis['status'] == 'strong_trend':
+            # Add points based on which direction is trending
+            tech_score += 5 if ma_bullish > ma_bearish else 3
+            explanations.append(f"Strong trend with ADX {adx_value:.2f} ({('bullish' if ma_bullish > ma_bearish else 'bearish')})")
+        elif adx_analysis['status'] == 'no_trend':
+            tech_score += 3
+            explanations.append(f"No clear trend with ADX {adx_value:.2f}")
+            
+        # Stochastic analysis
+        stoch_analysis = interpret_stochastic(indicators.get('stochastic_14_3_3', {}))
+        if stoch_analysis['status'] == 'oversold':
+            tech_score += 12
+            explanations.append("Stochastic oversold (bullish)")
+        elif stoch_analysis['status'] == 'overbought':
+            tech_score += 5
+            explanations.append("Stochastic overbought (bearish)")
+        elif stoch_analysis['status'] == 'bullish':
+            tech_score += 8
+            explanations.append("Bullish stochastic crossover")
+        
+        # CCI analysis
+        cci_analysis = interpret_cci(indicators.get('cci'))
+        if cci_analysis['status'] == 'oversold':
+            tech_score += 10
+            explanations.append("CCI oversold (bullish)")
+        elif cci_analysis['status'] == 'overbought':
+            tech_score += 4
+            explanations.append("CCI overbought (bearish)")
+        
+        # Support/Resistance analysis
+        sr_analysis = interpret_support_resistance(current_price, indicators.get('support_resistance', {}))
+        if sr_analysis['status'] == 'bullish':
+            tech_score += sr_analysis['strength'] * 5
+            explanations.append(sr_analysis['description'])
+        elif sr_analysis['status'] == 'bearish':
+            tech_score += 3
+            explanations.append(sr_analysis['description'])
+        
+    except (KeyError, IndexError) as e:
+        explanations.append(f"Error analyzing technical indicators: {e}")
+        logger.error(f"Error analyzing technical indicators: {e}")
+
     # Fundamental factors (30 points max)
-    
     # Insider activity
     insider_analysis = interpret_insider_activity(stock_data.get('insider_trading', {}))
     if insider_analysis['status'] == 'bullish':
         fund_score += 8
-        explanations.append(insider_analysis['description'])
     elif insider_analysis['status'] == 'bearish':
         fund_score += 2
-        explanations.append(insider_analysis['description'])
     else:
         fund_score += 5
-        explanations.append(insider_analysis['description'])
-        
+    explanations.append(insider_analysis['description'])
+    
     # Institutional holdings
     inst_analysis = interpret_institutional_holdings(stock_data.get('institutional_holdings', {}))
-    if 'high_ownership' in inst_analysis['status'] and 'accumulation' in inst_analysis['description']:
-        fund_score += 10
-        explanations.append(inst_analysis['description'])
-    elif 'high_ownership' in inst_analysis['status']:
-        fund_score += 8
-        explanations.append(inst_analysis['description'])
-    elif 'moderate_ownership' in inst_analysis['status'] and 'accumulation' in inst_analysis['description']:
-        fund_score += 7
-        explanations.append(inst_analysis['description'])
+    if 'high_ownership' in inst_analysis['status']:
+        fund_score += 10 if 'accumulation' in inst_analysis['description'] else 8
     elif 'moderate_ownership' in inst_analysis['status']:
-        fund_score += 5
-        explanations.append(inst_analysis['description'])
+        fund_score += 7 if 'accumulation' in inst_analysis['description'] else 5
     else:
         fund_score += 3
-        explanations.append(inst_analysis['description'])
-        
+    explanations.append(inst_analysis['description'])
+    
     # Sentiment
     sentiment = stock_data.get('reddit_wallstreetbets_sentiment', {}).get('sentiment_score_from_neg10_to_pos10')
     if sentiment is not None:
@@ -582,27 +584,17 @@ def generate_preliminary_rating(stock_data):
     
     # Revenue and earnings
     if stock_data.get('revenue_earnings'):
-        has_revenue = False
-        for quarter in stock_data.get('revenue_earnings', []):
-            if isinstance(quarter, dict) and quarter.get('revenue') not in ('N/A', None):
-                has_revenue = True
-                break
-        
-        if not has_revenue:
-            fund_score += 2
-            explanations.append("Pre-revenue company (higher risk)")
-        else:
-            fund_score += 5
-            explanations.append("Revenue-generating company")
+        has_revenue = any(isinstance(q, dict) and q.get('revenue') not in ('N/A', None) 
+                         for q in stock_data.get('revenue_earnings', []))
+        fund_score += 5 if has_revenue else 2
+        explanations.append("Revenue-generating company" if has_revenue else "Pre-revenue company (higher risk)")
     
-    # Calculate confidence (1-10)
+    # Calculate confidence and normalize scores
     data_points = len(explanations)
     confidence = max(1, min(10, data_points // 2))
     
-    # Normalize scores
     normalized_tech = int((tech_score / max_tech) * 70)
     normalized_fund = int((fund_score / max_fund) * 30)
-    
     total_score = normalized_tech + normalized_fund
     
     return {

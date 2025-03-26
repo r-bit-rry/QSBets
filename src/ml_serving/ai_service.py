@@ -37,8 +37,7 @@ def map_reduce_summarize(
     """Implement map-reduce summarization using langchain with optimized memory usage"""
     llm = get_chat(
         backend=backend,
-        model=model,
-        system_message=SystemMessage(STOCK_SUMMARIZE_SYSTEM_PROMPT)
+        model=model
     )
 
     # Create text splitter for chunking
@@ -66,6 +65,7 @@ def map_reduce_summarize(
 
     messages = ChatPromptTemplate.from_messages(
         [
+            ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
             ("user", map_template),
         ]
     )
@@ -85,6 +85,7 @@ def map_reduce_summarize(
 
     messages = ChatPromptTemplate.from_messages(
         [
+            ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
             ("user", reduce_template)
         ]
     )
@@ -218,7 +219,7 @@ def consult(
     filepath: str,
     metadata: Dict[str, Any] = None,
     callback: Callable = None,
-    backend: str = "ollama",
+    backend: str = "lmstudio",
     model: str = "fin-r1-mlx",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:
@@ -257,11 +258,12 @@ def consult(
 
     messages = ChatPromptTemplate.from_messages(
         [
+            ("system", STOCK_CONSULT_SYSTEM_PROMPT),
             ("user", prompt.template)
         ]
     )
     # Get model server
-    llm = get_chat(backend=backend, model=model, system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
+    llm = get_chat(backend=backend, model=model, **FIN_R1_ARGS)
     chain = messages | llm | StrOutputParser() | JsonOutputParser() 
     chain = chain.with_retry(
         stop_after_attempt=max_retries

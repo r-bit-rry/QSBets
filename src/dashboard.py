@@ -1,3 +1,4 @@
+from datetime import datetime
 import streamlit as st
 import pandas as pd
 import json
@@ -26,35 +27,65 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Helper functions
+
 def find_latest_file(directory, pattern, symbol=None):
-    """Find the most recent file in the directory that matches the pattern and optionally contains the symbol."""
-    files = [f for f in os.listdir(directory) if f.endswith(pattern)]
-    files.sort(key=lambda x: x.split('_')[-1].split('.')[0] if '_' in x else '', reverse=True)
-    
-    if symbol:
-        symbol_files = [f for f in files if symbol.lower() in f.lower()]
-        if symbol_files:
-            return symbol_files[0]
-    
-    return files[0] if files else None
+    """
+    Find the most recent file in the date hierarchy directory that matches
+    the pattern and optionally contains the symbol.
+    """
+    latest_file = None
+    latest_date = None
+
+    # Walk through the date hierarchy directories
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            if file.endswith(pattern):
+                # Check if the file name contains the symbol (if specified)
+                if symbol and symbol.lower() not in file.lower():
+                    continue
+
+                # Extract date from directory path
+                # Path format: analysis_docs/YYYY/MM/DD/
+                path_parts = root.split(os.sep)
+                if (
+                    len(path_parts) >= 4
+                ):  # Make sure we have enough parts (base + year + month + day)
+                    try:
+                        year = int(path_parts[-3])
+                        month = int(path_parts[-2])
+                        day = int(path_parts[-1])
+                        file_date = datetime(year, month, day)
+
+                        # Update if this is the most recent file
+                        if latest_date is None or file_date > latest_date:
+                            latest_date = file_date
+                            latest_file = os.path.join(root, file)
+                    except (ValueError, IndexError):
+                        # Skip if the path doesn't conform to our expected format
+                        continue
+
+    return latest_file
+
 
 def load_analysis_doc(symbol):
     """Load the analysis document for a specific symbol."""
     analysis_docs_path = "./analysis_docs"
-    files = [f for f in os.listdir(analysis_docs_path) if f.startswith(f"{symbol}_") and f.endswith(".yaml")]
-    
-    if not files:
+
+    # Find the latest file for the specific symbol in the date hierarchy
+    latest_file = find_latest_file(analysis_docs_path, ".yaml", symbol)
+
+    if not latest_file:
         latest_file = find_latest_file(analysis_docs_path, ".yaml")
         if not latest_file:
             return None, None
-        file_path = os.path.join(analysis_docs_path, latest_file)
-    else:
-        files.sort(key=lambda x: x.split('_')[-1].split('.')[0], reverse=True)
-        file_path = os.path.join(analysis_docs_path, files[0])
-    
-    with open(file_path, "r") as file:
-        return yaml.safe_load(file), os.path.basename(file_path)
+
+    try:
+        with open(latest_file, "r") as file:
+            return yaml.safe_load(file), os.path.basename(latest_file)
+    except Exception as e:
+        st.error(f"Error loading analysis document: {e}")
+        return None, None
+
 
 def load_result_for_symbol(results_path, symbol):
     """Find the result for a specific symbol in a results file."""
@@ -87,14 +118,22 @@ def load_results():
 def create_technical_chart(indicators):
     """Create a comprehensive technical analysis chart from indicators."""
     # Create figure with subplots: price/volume, trend indicators, oscillators, momentum
-    fig = make_subplots(rows=4, cols=1, 
-                        shared_xaxes=True,
-                        vertical_spacing=0.05,
-                        row_heights=[0.4, 0.2, 0.2, 0.2],
-                        subplot_titles=("Price & Volume", "Trend Indicators", "Oscillators", "Momentum"))
-    
+    fig = make_subplots(
+        rows=4,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,  # Increased for better separation
+        row_heights=[0.4, 0.2, 0.2, 0.2],
+        subplot_titles=(
+            "<b>Price & Volume</b>",
+            "<b>Trend Indicators</b>",
+            "<b>Oscillators</b>",
+            "<b>Momentum</b>",
+        ),
+    )
+
     x_range = list(range(len(indicators['rsi'])))
-    
+
     # 1. Price chart (if available) and volume
     historical_quotes = indicators.get('historical_quotes', {})
     if historical_quotes:
@@ -107,6 +146,7 @@ def create_technical_chart(indicators):
                 high=quotes_df['high'],
                 low=quotes_df['low'],
                 close=quotes_df['close'],
+                volume=quotes_df['volume']/1000000,
                 name='Price'
             ),
             row=1, col=1
@@ -119,26 +159,35 @@ def create_technical_chart(indicators):
                 go.Scatter(x=x_range, y=close_prices, mode='lines', name='Price'),
                 row=1, col=1
             )
-    
-    # Volume - Scale to millions for readability
-    volume_data = [vol['recent_volume'] / 1000000 for vol in indicators['volume_profile']]
-    fig.add_trace(
-        go.Bar(x=x_range, y=volume_data, name='Volume (M)', marker_color='rgba(0,0,255,0.3)'),
-        row=1, col=1
-    )
-    
+
+    # # Volume - Scale to millions for readability
+    # volume_data = [
+    #     vol["recent_volume"] / 1000000 for vol in historical_quotes["volume"]
+    # ]
+    # fig.add_trace(
+    #     go.Bar(
+    #         x=x_range,
+    #         y=volume_data,
+    #         name="Volume (M)",
+    #         marker_color="rgba(0,0,255,0.3)",
+    #         yaxis="y2",
+    #     ),
+    #     row=1,
+    #     col=1,
+    # )
+
     # Add moving averages to price chart
     for sma, color, dash in [('sma_20', 'blue', 'solid'), ('sma_50', 'orange', 'solid'), ('sma_100', 'green', 'dash')]:
         if sma in indicators:
             fig.add_trace(go.Scatter(x=x_range, y=indicators[sma], mode='lines', 
                                     name=sma.upper(), line=dict(color=color, dash=dash)), row=1, col=1)
-    
+
     # 2. Trend indicators
     # Bollinger Bands
     upper_band = [bb['upper'] for bb in indicators['bollinger_bands']]
     middle_band = [bb['middle'] for bb in indicators['bollinger_bands']]
     lower_band = [bb['lower'] for bb in indicators['bollinger_bands']]
-    
+
     fig.add_trace(go.Scatter(x=x_range, y=upper_band, mode='lines', 
                             line=dict(color='rgba(250,128,114,0.7)'),
                             name='Upper BB'), row=2, col=1)
@@ -149,12 +198,12 @@ def create_technical_chart(indicators):
                             line=dict(color='rgba(250,128,114,0.7)'),
                             fill='tonexty', fillcolor='rgba(250,128,114,0.1)',
                             name='Lower BB'), row=2, col=1)
-    
+
     # Add EMA
     if 'ema_20' in indicators:
         fig.add_trace(go.Scatter(x=x_range, y=indicators['ema_20'], mode='lines', 
                                 name='EMA 20', line=dict(color='purple')), row=2, col=1)
-    
+
     # ADX - Add to trend indicators panel
     if 'adx' in indicators:
         fig.add_trace(go.Scatter(x=x_range, y=indicators['adx'], mode='lines', 
@@ -163,12 +212,12 @@ def create_technical_chart(indicators):
         fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=25, y1=25,
                     line=dict(color="brown", width=1, dash="dash"),
                     row=2, col=1)
-    
+
     # 3. Oscillators - RSI, Stochastic, CCI
     # RSI
     fig.add_trace(go.Scatter(x=x_range, y=indicators['rsi'], 
                             mode='lines', name='RSI', line=dict(color='blue')), row=3, col=1)
-    
+
     # Add RSI reference lines at 70 and 30
     fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=70, y1=70,
                 line=dict(color="red", width=1, dash="dash"),
@@ -176,7 +225,7 @@ def create_technical_chart(indicators):
     fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=30, y1=30,
                 line=dict(color="green", width=1, dash="dash"),
                 row=3, col=1)
-    
+
     # Stochastic
     if 'stochastic_14_3_3' in indicators:
         stoch_k = [stoch['stochastic_k'] for stoch in indicators['stochastic_14_3_3']]
@@ -185,7 +234,7 @@ def create_technical_chart(indicators):
                                 name='Stoch %K', line=dict(color='orange')), row=3, col=1)
         fig.add_trace(go.Scatter(x=x_range, y=stoch_d, mode='lines', 
                                 name='Stoch %D', line=dict(color='green')), row=3, col=1)
-        
+
         # Add Stochastic reference lines at 80 and 20
         fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=80, y1=80,
                     line=dict(color="red", width=1, dash="dash"),
@@ -193,54 +242,68 @@ def create_technical_chart(indicators):
         fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=20, y1=20,
                     line=dict(color="green", width=1, dash="dash"),
                     row=3, col=1)
-    
+
     # CCI
     if 'cci' in indicators:
         fig.add_trace(go.Scatter(x=x_range, y=indicators['cci'], mode='lines', 
-                                name='CCI', line=dict(color='purple')), row=3, col=1)
-        # Add CCI reference lines at +100 and -100
-        fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=100, y1=100,
-                    line=dict(color="red", width=1, dash="dash"),
-                    row=3, col=1)
-        fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=-100, y1=-100,
-                    line=dict(color="green", width=1, dash="dash"),
-                    row=3, col=1)
-    
+                                name='CCI', line=dict(color='purple'), yaxis="y3"), row=3, col=1)
+        fig.update_layout(
+            yaxis3=dict(
+                title="CCI",
+                anchor="x",
+                overlaying="y3",
+                side="right",
+                showgrid=False
+            )
+        )
+
     # 4. Momentum - MACD
     macd_values = [macd['macd'] for macd in indicators['macd']]
     signal_values = [macd['signal'] for macd in indicators['macd']]
     hist_values = [macd['hist'] for macd in indicators['macd']]
-    
+
     fig.add_trace(go.Scatter(x=x_range, y=macd_values, mode='lines', 
                             name='MACD', line=dict(color='blue')), row=4, col=1)
     fig.add_trace(go.Scatter(x=x_range, y=signal_values, mode='lines', 
                             name='Signal', line=dict(color='red')), row=4, col=1)
-    
+
     # Add histogram bars for MACD
     colors = ['green' if val >= 0 else 'red' for val in hist_values]
     fig.add_trace(go.Bar(x=x_range, y=hist_values, name='Histogram', 
-                        marker_color=colors, opacity=0.6), row=4, col=1)
-    
+                    marker_color=colors, opacity=0.7, width=0.8), row=4, col=1)
+
     # Add zero line for MACD
     fig.add_shape(type="line", x0=0, x1=len(x_range)-1, y0=0, y1=0,
                 line=dict(color="black", width=1),
                 row=4, col=1)
-    
+
     # Update layout
     fig.update_layout(
         height=1000,
         title_text=f"Technical Analysis Dashboard",
         xaxis_rangeslider_visible=False,
         showlegend=True,
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="center",
+            x=0.5,
+            groupclick="toggleitem",  # Allow toggling groups of indicators
+        ),
+        yaxis2=dict(
+            title="Volume (M)", anchor="x", overlaying="y", side="right", showgrid=False
+        ),
+        plot_bgcolor="rgba(240,240,240,0.1)",  # Lighter background
     )
-    
+    fig.update_xaxes(showgrid=True, gridwidth=0.5, gridcolor='rgba(200,200,200,0.2)')
+    fig.update_yaxes(showgrid=True, gridwidth=0.5, gridcolor='rgba(200,200,200,0.2)')
     # Set y-axis titles and ranges
     fig.update_yaxes(title_text="Price", row=1, col=1, autorange=True)
     fig.update_yaxes(title_text="BB & ADX", row=2, col=1, autorange=True)
-    fig.update_yaxes(title_text="Oscillators", row=3, col=1, range=[0, 100])
+    fig.update_yaxes(title_text="Oscillators", row=3, col=1, range=[0, 100])  # Fixed range for RSI/Stochastics
     fig.update_yaxes(title_text="MACD", row=4, col=1, autorange=True)
-    
+
     return fig
 
 def display_key_indicators(indicators):
@@ -307,16 +370,16 @@ def display_strategy_section(result_data, section_name):
     """Display entry or exit strategy information."""
     section_key = f"{section_name.lower()}_strategy"
     strategy = None
-    
+
     # Look for key with and without spaces
     for key in result_data.keys():
         if key.strip() == section_key:
             strategy = result_data[key]
             break
-    
+
     if strategy is None:
         strategy = result_data.get(section_key, {})
-    
+
     if strategy:
         if isinstance(strategy, dict):
             for key, value in strategy.items():
@@ -332,26 +395,33 @@ def display_strategy_section(result_data, section_name):
     else:
         st.write(f"No {section_name.lower()} strategy information available")
 
+
 def fetch_stock_data(symbol, period):
     """Fetch basic stock data and related indicators."""
     nasdaq_data = fetch_nasdaq_data()
     stock_data = nasdaq_data[nasdaq_data["symbol"] == symbol.upper()]
-    
+
     news = fetch_stock_news(symbol) if not stock_data.empty else []
     news_df = pd.DataFrame([json.loads(item) for item in news]) if news else pd.DataFrame()
-    
+
     press_releases = fetch_stock_press_releases(symbol) if not stock_data.empty else []
-    press_df = pd.DataFrame([json.loads(item) for item in press_releases]) if press_releases else pd.DataFrame()
-    
-    indicators = fetch_technical_indicators(symbol, period, days=30)
+    press_df = (
+        pd.DataFrame([json.loads(item) for item in press_releases])
+        if press_releases
+        else pd.DataFrame()
+    )
+
+    # Change days=30 to days=period to match the historical data period
+    indicators = fetch_technical_indicators(symbol, period, days=period)
     historical_data = fetch_historical_quotes(symbol, period)
     df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
-    
+
     # Return historical quotes as part of indicators to enable better charting
-    historical_dict = df.to_dict('index')
-    indicators['historical_quotes'] = historical_dict
-    
+    historical_dict = df.to_dict("index")
+    indicators["historical_quotes"] = historical_dict
+
     return nasdaq_data, stock_data, news_df, press_df, indicators
+
 
 # Main Dashboard UI
 def main():

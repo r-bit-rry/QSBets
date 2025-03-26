@@ -10,7 +10,7 @@ from logger import get_logger
 logger = get_logger(__name__)
 
 from analysis.macroeconomic import get_macroeconomic_context
-from ml_serving.ai_service import map_reduce_summarize, summarize
+from ml_serving.ai_service import map_reduce_summarize
 from collectors.social import fetch_stocks_sentiment, fetch_stocks_social
 from collectors.nasdaq import (
     fetch_historical_quotes,
@@ -106,14 +106,13 @@ class Stock:
 
         # Technical indicators analysis
         t_start = time.time()
-        technical_indicators = fetch_technical_indicators(self.symbol)
+        technical_indicators = fetch_technical_indicators(self.symbol, period=150, days=1)
         report["technical_indicators"] = technical_indicators
         timings["technical_indicators"] = time.time() - t_start
 
         t_start = time.time()
         # Get current price from most recent quote
-        historical_data = fetch_historical_quotes(self.symbol, 5)
-        report["historical_quotes"] = self._optimize_historical_quotes(historical_data)
+        report["historical_quotes"] = fetch_historical_quotes(self.symbol, 5)
         current_price = float(list(report["historical_quotes"].values())[0]["close"])
         # Pre-analyze the technical indicators and add interpretations
         technical_analysis = [
@@ -239,14 +238,22 @@ class Stock:
     def _save_report_and_print_timing(self, report, timings, start_total, format_type, file_extension, save_func):
         """Save the report in the specified format and print timing information"""
         t_start = time.time()
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = datetime.now()
+        date_str = today.strftime("%Y-%m-%d")
+        year_str = today.strftime("%Y")
+        month_str = today.strftime("%m")
+        day_str = today.strftime("%d")
         safe_name = "".join(
             c for c in self.meta["symbol"] if c.isalnum() or c in ("_", "-")
         )
+
+        # Create date-based directory structure
         docs_folder = "analysis_docs"
-        os.makedirs(docs_folder, exist_ok=True)
-        file_name = f"{safe_name}_{today}.{file_extension}"
-        file_path = os.path.join(docs_folder, file_name)
+        date_path = os.path.join(docs_folder, year_str, month_str, day_str)
+        os.makedirs(date_path, exist_ok=True)
+
+        file_name = f"{safe_name}.{file_extension}"
+        file_path = os.path.join(date_path, file_name)
 
         # Save the file using the provided save function
         with open(file_path, "w", encoding="utf-8") as fp:
@@ -424,22 +431,6 @@ class Stock:
                     except:
                         pass
                     break
-
-        return result
-
-    def _optimize_historical_quotes(self, data):
-        """Convert string price/volume data to numeric for easier analysis"""
-        result = {}
-
-        for date, values in data.items():
-            result[date] = {}
-            for key, value in values.items():
-                if key in ["close", "open", "high", "low"]:
-                    result[date][key] = self._clean_numeric(value)
-                elif key == "volume":
-                    result[date][key] = self._clean_financial_metric(value)
-                else:
-                    result[date][key] = value
 
         return result
 

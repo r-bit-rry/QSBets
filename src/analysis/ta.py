@@ -21,10 +21,7 @@ def prepare_dataframe(historical_json, date_format="%m/%d/%Y"):
 
     # For each numeric price column, remove leading '$' if present, then convert to float64.
     for col in df.columns:
-        df[col] = df[col].astype(str).str.replace(r"[\$,]", "", regex=True)
         df[col] = pd.to_numeric(df[col], errors="coerce").astype("float64")
-
-    # 'volume' is assumed to be numeric already and is left as is.
 
     # Convert index to datetime using the provided format and sort the DataFrame by index.
     df.index = pd.to_datetime(df.index, format=date_format)
@@ -97,16 +94,24 @@ def calculate_bollinger_bands(df, period=20, nbdevup=2, nbdevdn=2):
         "lower": float(lower[-1]) if lower.size > 0 else None
     }
 
+
 def analyze_volume(df):
+    if df.empty or len(df) == 0:
+        # Return default values for empty DataFrames
+        return {
+            "avg_volume": 0,
+            "recent_volume": 0,
+            "relative_volume": 0,
+            "volume_trend": "flat",
+        }
+
     avg_volume = float(df["volume"].mean())
     recent_volume = float(df["volume"].iloc[-1])
-    return {
-        "avg_volume": avg_volume,
-        "recent_volume": recent_volume,
-        "relative_volume": (
-            round(recent_volume / avg_volume, 2) if avg_volume > 0 else 0
-        ),
-        "volume_trend": (
+
+    # Check if we have enough data points for trend analysis
+    volume_trend = "flat"
+    if len(df) >= 5:
+        volume_trend = (
             "increasing"
             if df["volume"].iloc[-5:].is_monotonic_increasing
             else (
@@ -114,7 +119,15 @@ def analyze_volume(df):
                 if df["volume"].iloc[-5:].is_monotonic_decreasing
                 else "flat"
             )
+        )
+
+    return {
+        "avg_volume": avg_volume,
+        "recent_volume": recent_volume,
+        "relative_volume": (
+            round(recent_volume / avg_volume, 2) if avg_volume > 0 else 0
         ),
+        "volume_trend": volume_trend,
     }
 
 
@@ -177,26 +190,38 @@ def safe_get_last_item(value):
     return value
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_technical_indicators(symbol, period=150, days=1):
+def fetch_technical_indicators(symbol, period=150, days=30):
     # Fetch and parse the historical quotes JSON from NASDAQ.
     historical_data = fetch_historical_quotes(symbol, period)
     df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
     
+    # Safety checks
+    if df.empty or len(df) < 20:  # Need minimum data for reliable indicators
+        return {}
+    
+    # Ensure days doesn't exceed available data and we have enough data for calculations
+    days = min(days, len(df))
+    
+    min_data_needed = 100  # Ensure enough data for SMA100
+    start_idx = max(min_data_needed, len(df) - days)
+    end_idx = len(df) + 1
+    
     indicators = {
-        "rsi": [calculate_rsi(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
-        "macd": [calculate_macd(df.iloc[:i]) for i in range(len(df) - days, len(df))],
-        "sma_20": [calculate_sma(df.iloc[:i], 20) for i in range(len(df) - days, len(df))],
-        "sma_50": [calculate_sma(df.iloc[:i], 50) for i in range(len(df) - days, len(df))],
-        "sma_100": [calculate_sma(df.iloc[:i], 100) for i in range(len(df) - days, len(df))],
-        "bollinger_bands": [calculate_bollinger_bands(df.iloc[:i]) for i in range(len(df) - days, len(df))],
-        "volume_profile": [analyze_volume(df.iloc[:i]) for i in range(len(df) - days, len(df))],
-        "ema_20": [calculate_ema(df.iloc[:i], period=20) for i in range(len(df) - days, len(df))],
-        "atr": [calculate_atr(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
-        "adx": [calculate_adx(df.iloc[:i], period=14) for i in range(len(df) - days, len(df))],
-        "stochastic_14_3_3": [calculate_stochastic(df.iloc[:i]) for i in range(len(df) - days, len(df))],
-        "cci": [calculate_cci(df.iloc[:i], period=20) for i in range(len(df) - days, len(df))],
-        "support_resistance": [find_support_resistance(df.iloc[:i]) for i in range(len(df) - days, len(df))]
+        "rsi": [calculate_rsi(df.iloc[:i], period=14) for i in range(start_idx, end_idx)],
+        "macd": [calculate_macd(df.iloc[:i]) for i in range(start_idx, end_idx)],
+        "sma_20": [calculate_sma(df.iloc[:i], 20) for i in range(start_idx, end_idx)],
+        "sma_50": [calculate_sma(df.iloc[:i], 50) for i in range(start_idx, end_idx)],
+        "sma_100": [calculate_sma(df.iloc[:i], 100) for i in range(start_idx, end_idx)],
+        "bollinger_bands": [calculate_bollinger_bands(df.iloc[:i]) for i in range(start_idx, end_idx)],
+        "volume_profile": [analyze_volume(df.iloc[:i]) for i in range(start_idx, end_idx)],
+        "ema_20": [calculate_ema(df.iloc[:i], period=20) for i in range(start_idx, end_idx)],
+        "atr": [calculate_atr(df.iloc[:i], period=14) for i in range(start_idx, end_idx)],
+        "adx": [calculate_adx(df.iloc[:i], period=14) for i in range(start_idx, end_idx)],
+        "stochastic_14_3_3": [calculate_stochastic(df.iloc[:i]) for i in range(start_idx, end_idx)],
+        "cci": [calculate_cci(df.iloc[:i], period=20) for i in range(start_idx, end_idx)],
+        "support_resistance": [find_support_resistance(df.iloc[:i]) for i in range(start_idx, end_idx)]
     }
+
     indicators = round_numbers(indicators)
     return {k: (safe_get_last_item(v) if days == 1 else v) for k, v in indicators.items()}
 

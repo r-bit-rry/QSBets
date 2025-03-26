@@ -297,14 +297,14 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
     Fetches historical prices for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/quote/{symbol}/historical?assetclass=stocks
 
-    Returns a JSON string containing the last 5 days of trading data in format:
+    Returns a dict containing the trading data with numeric values (not string with $ and commas):
     {
         "MM/DD/YYYY": {
-            "close": "$XX.XX",
-            "volume": "X,XXX,XXX",
-            "open": "$XX.XX",
-            "high": "$XX.XX",
-            "low": "$XX.XX"
+            "close": 123.45,  # float
+            "volume": 1234567,  # int
+            "open": 123.45,    # float
+            "high": 124.56,    # float
+            "low": 122.34      # float
         },
         ...
     }
@@ -313,7 +313,7 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
     end_date = datetime.now()
     start_date = end_date - timedelta(
         days=period
-    )  # Request more data than needed to ensure we have 5 trading days
+    )  # Request more data than needed to ensure we have enough trading days
 
     historical_url = (
         f"https://api.nasdaq.com/api/quote/{symbol}/historical?"
@@ -330,18 +330,41 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
     # Extract the trades table which contains all the price information
     trades_data = data.get("tradesTable", {}).get("rows") or []
 
-    prices_dict = {
-        row["date"]: {
-            "close": row["close"],
-            "volume": row["volume"],
-            "open": row["open"],
-            "high": row["high"],
-            "low": row["low"],
+    prices_dict = {}
+    for row in trades_data:
+        # Clean and convert price values (remove $ and commas)
+        close_price = (
+            float(row["close"].replace("$", "").replace(",", ""))
+            if row["close"]
+            else None
+        )
+        open_price = (
+            float(row["open"].replace("$", "").replace(",", ""))
+            if row["open"]
+            else None
+        )
+        high_price = (
+            float(row["high"].replace("$", "").replace(",", ""))
+            if row["high"]
+            else None
+        )
+        low_price = (
+            float(row["low"].replace("$", "").replace(",", "")) if row["low"] else None
+        )
+
+        # Clean and convert volume (remove commas)
+        volume = int(row["volume"].replace(",", "")) if row["volume"] else None
+
+        prices_dict[row["date"]] = {
+            "close": close_price,
+            "volume": volume,
+            "open": open_price,
+            "high": high_price,
+            "low": low_price,
         }
-        for row in trades_data
-    }
 
     return prices_dict
+
 
 @cached(ttl_seconds=DAY_TTL)
 def fetch_insider_trading(symbol: str) -> str:

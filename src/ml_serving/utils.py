@@ -31,13 +31,13 @@ def dump_failed_text(text: str):
         file.write(text)
 
 
-def get_chat(backend: str = "ollama", model: str = None, **kwargs) -> BaseChatModel:
+def get_chat(backend: str = "lmstudio", model: str = None, **kwargs) -> BaseChatModel:
     """
     Get the chat model based on the backend.
     Implements a singleton pattern to avoid multiple instances of the same model.
 
     Args:
-        backend: The backend to use (e.g., "azure", "mlx", "ollama")
+        backend: The backend to use (e.g., "azure", "mlx", "ollama", "lmstudio")
         model: The model name or path to use
 
     Returns:
@@ -91,6 +91,20 @@ def get_chat(backend: str = "ollama", model: str = None, **kwargs) -> BaseChatMo
         from langchain_ollama import ChatOllama
 
         instance = ChatOllama(model=model, num_ctx=16384, **kwargs)
+    elif backend == "lmstudio":
+        from langchain_openai import ChatOpenAI
+        kwargs.pop("system_message", None)
+        kwargs.pop("temp", None)
+        kwargs.pop("num_predict", None)
+        kwargs.pop("repetition_penalty", None)
+        kwargs.pop("repeat_penalty", None)
+        kwargs.pop("repetition_context_size", None)
+        kwargs.pop("repeat_last_n", None)
+        kwargs.pop("keep_alive", None)
+        kwargs.pop("format", None)
+        instance = ChatOpenAI(
+            base_url="http://localhost:1234/v1", model=model, api_key="not-needed", **kwargs
+        )
     else:
         raise ValueError(f"Unsupported backend: {backend}")
 

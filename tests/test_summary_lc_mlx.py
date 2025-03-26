@@ -127,8 +127,6 @@ def map_reduce_summarize(documents: List[Document], stock: str, chunk_size: int 
 
 def main():
     """Main function to test map-reduce summarization of stock news"""
-    # Initialize model server
-    print("Initializing MLX model server...")
     
     # Fetch news for NVDA
     print("Fetching news for NVDA...")

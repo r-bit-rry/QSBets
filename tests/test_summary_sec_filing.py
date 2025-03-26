@@ -13,8 +13,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from logger import get_logger
-from ml_serving.utils import get_chat
+from src.logger import get_logger
+from src.ml_serving.utils import get_chat
 
 from edgar import Company, set_identity
 logger = get_logger("sec_summary")
@@ -51,7 +51,7 @@ def load_sec_filing(company: str) -> List[Document]:
 def map_reduce_summarize_sec_filing(documents: List[Document], chunk_size: int = 64000):
     """Implement map-reduce summarization using langchain with SEC filing-specific prompts"""
     # Initialize the LLM
-    llm = get_chat(backend="ollama", model="glm4:9b-chat-q8_0")
+    llm = get_chat(backend="lmstudio", model="glm-4-9b-chat-abliterated")
 
     # Create text splitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(

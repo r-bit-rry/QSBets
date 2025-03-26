@@ -22,7 +22,7 @@ class TestMlxConsult(unittest.TestCase):
 
     def test_consult_basic(self):
         """Test that the consult function returns valid results"""
-        result = consult(self.test_file)
+        result = consult(self.test_file, backend="lmstudio")
         self.assertIsInstance(result, dict)
         # Check for required fields in the response
         expected_fields = ["symbol", "rating", "confidence", "reasoning", 
@@ -34,7 +34,7 @@ class TestMlxConsult(unittest.TestCase):
         """Test consult with different prompt versions"""
         for version in [3, 4, 5]:
             with self.subTest(prompt_version=version):
-                result = consult(self.test_file, prompt_version=version)
+                result = consult(self.test_file, backend="lmstudio")
                 self.assertIsInstance(result, dict)
                 # At minimum, there should be a rating
                 self.assertIn("rating", result)
@@ -51,7 +51,7 @@ def test_consult():
     # Get the path to the test file
     current_dir = os.path.dirname(os.path.abspath(__file__))
     test_file = os.path.join(current_dir, "MRVL_2025-03-16.yaml")
-    result = consult(test_file)
+    result = consult(test_file, backend="lmstudio", model="fin-r1-mlx")
 
     if result:
         print(f"Analysis result: {json.dumps(result, indent=2)}")

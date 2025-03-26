@@ -29,14 +29,15 @@ def map_reduce_summarize(
     documents: List[Document],
     stock: str,
     callback: Callable = StrOutputParser(),
-    backend: str = "ollama",
+    backend: str = "lmstudio",
+    model: str = "glm-4-9b-chat-abliterated",
     chunk_size: int = 16000,
     batch_size: int = 4,  # Control parallel processing
 ) -> str:
     """Implement map-reduce summarization using langchain with optimized memory usage"""
     llm = get_chat(
         backend=backend,
-        model="glm4:9b-chat-q8_0",
+        model=model,
         system_message=SystemMessage(STOCK_SUMMARIZE_SYSTEM_PROMPT)
     )
 
@@ -218,6 +219,7 @@ def consult(
     metadata: Dict[str, Any] = None,
     callback: Callable = None,
     backend: str = "ollama",
+    model: str = "fin-r1-mlx",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:
     """
@@ -259,7 +261,7 @@ def consult(
         ]
     )
     # Get model server
-    llm = get_chat(backend=backend, model="finr1", system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
+    llm = get_chat(backend=backend, model=model, system_message=SystemMessage(STOCK_CONSULT_SYSTEM_PROMPT), **FIN_R1_ARGS)
     chain = messages | llm | StrOutputParser() | JsonOutputParser() 
     chain = chain.with_retry(
         stop_after_attempt=max_retries

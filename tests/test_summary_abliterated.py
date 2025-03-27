@@ -7,7 +7,7 @@ import sys
 # Add the project root to the path to allow importing modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.ml_serving.ai_service import map_reduce_summarize
+from src.ml_serving.ai_service import map_reduce_summarize_stock
 
 class TestMapReduceSummarize(unittest.TestCase):
     """Test class for testing the map_reduce_summarize functionality"""
@@ -26,12 +26,12 @@ class TestMapReduceSummarize(unittest.TestCase):
 
     def test_basic_summary(self):
         """Test that the map_reduce_summarize function returns a valid summary"""
-        result = map_reduce_summarize(
+        result = map_reduce_summarize_stock(
             documents=self.documents,
             stock="TEST",
             backend="lmstudio",
             chunk_size=16000,
-            batch_size=4
+            batch_size=4,
         )
         self.assertIsInstance(result, str)
         self.assertTrue(len(result) > 0, "Summary result should not be empty")
@@ -42,12 +42,12 @@ class TestMapReduceSummarize(unittest.TestCase):
             Document(page_content=self.sample_text),
             Document(page_content=self.sample_text)
         ]
-        result = map_reduce_summarize(
+        result = map_reduce_summarize_stock(
             documents=documents,
             stock="TEST",
             backend="lmstudio",
             chunk_size=16000,
-            batch_size=4
+            batch_size=4,
         )
         self.assertIsInstance(result, str)
         self.assertTrue(len(result) > 0, "Summary result should not be empty")
@@ -64,13 +64,13 @@ def test_map_reduce_summarize_standalone():
     While it's well off its recent highs, Palantir Technologies (NASDAQ: PLTR) was one of the best-performing stocks in 2024 and early 2025. However, those gains have led to an extreme valuation, with the stock trading at a forward price-to-sales (P/S) multiple of 52 times 2025 analyst revenue estimates.
     """
     documents = [Document(page_content=sample_text)]
-    result = map_reduce_summarize(
+    result = map_reduce_summarize_stock(
         documents=documents,
         stock="TEST",
         backend="lmstudio",
         model="glm-4-9b-chat-abliterated",
         chunk_size=16000,
-        batch_size=4
+        batch_size=4,
     )
     print("Summary result:")
     print(result)

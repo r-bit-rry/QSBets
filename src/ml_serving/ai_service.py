@@ -27,14 +27,20 @@ DEFAULT_BASE_DELAY = 2.0
 @cached(HOURS2_TTL)
 def map_reduce_summarize(
     documents: List[Document],
-    stock: str,
     callback: Callable = StrOutputParser(),
     backend: str = "lmstudio",
     model: str = "glm-4-9b-chat-abliterated",
-    chunk_size: int = 16000,
-    batch_size: int = 4,  # Control parallel processing
+    chunk_size: int = 10000,
+    batch_size: int = 4,
+    system_prompt: str = "",
+    map_template: str = "",
+    reduce_template: str = "",
+    params: Dict[str, Any] = {}
 ) -> str:
-    """Implement map-reduce summarization using langchain with optimized memory usage"""
+    """
+    Implement map-reduce summarization using langchain with optimized memory usage.
+    Generic version that accepts custom prompts and parameters.
+    """
     llm = get_chat(
         backend=backend,
         model=model
@@ -58,14 +64,9 @@ def map_reduce_summarize(
     logger.info(f"Split {len(documents)} documents into {len(splits)} chunks")
 
     # Map: Summarize each chunk
-    map_template = """Summarize the following text for the stock {stock}:
-    {text}
-    
-    Summary:"""
-
     messages = ChatPromptTemplate.from_messages(
         [
-            ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
+            ("system", system_prompt),
             ("user", map_template),
         ]
     )
@@ -73,19 +74,11 @@ def map_reduce_summarize(
     map_chain = map_chain.with_retry(
         stop_after_attempt=DEFAULT_MAX_RETRIES,
     )
+    
     # Reduce: Combine summaries
-    reduce_template = """You are given a set of summaries extracted from a longer text about stock news.
-    Create a concise, technical, comprehensive summary that combines all the important information about this stock {stock}.
-    Focus on quantitative data: revenue growth percentages, earnings, EPS, P/E ratios, margins, risks, and opportunities, year-over-year comparisons.
-    
-    SUMMARIES:
-    {summaries}
-    
-    COMPREHENSIVE SUMMARY:"""
-
     messages = ChatPromptTemplate.from_messages(
         [
-            ("system", STOCK_SUMMARIZE_SYSTEM_PROMPT),
+            ("system", system_prompt),
             ("user", reduce_template)
         ]
     )
@@ -110,7 +103,7 @@ def map_reduce_summarize(
             batch_tasks = []
             for i in range(batch_start, batch_end):
                 task = asyncio.create_task(
-                    map_chain.ainvoke({"text": splits[i].page_content, "stock": stock})
+                    map_chain.ainvoke({"text": splits[i].page_content, **params})
                 )
                 batch_tasks.append((i, task))
 
@@ -124,7 +117,7 @@ def map_reduce_summarize(
                     logger.error(f"Error processing chunk {i+1}: {e}")
                     # Fall back to sync processing for failed chunks
                     result = map_chain.invoke(
-                        {"text": splits[i].page_content, "stock": stock}
+                        {"text": splits[i].page_content, **params}
                     )
                     mapped_results[i] = result
                     logger.info(f"Chunk {i+1} processed (sequential fallback)")
@@ -143,10 +136,53 @@ def map_reduce_summarize(
     # Execute reduce step
     logger.info("Starting reduce step...")
     result = reduce_chain.invoke(
-        {"summaries": "\n".join(mapped_results), "stock": stock}
+        {"summaries": "\n".join(mapped_results), **params}
     )
 
     return result
+
+@cached(HOURS2_TTL)
+def map_reduce_summarize_stock(
+    documents: List[Document],
+    stock: str,
+    callback: Callable = StrOutputParser(),
+    backend: str = "lmstudio",
+    model: str = "glm-4-9b-chat-abliterated",
+    chunk_size: int = 16000,
+    batch_size: int = 4,
+) -> str:
+    """
+    Stock-specific implementation of map-reduce summarization.
+    This function provides the exact same behavior as the original map_reduce_summarize.
+    """
+    # Map template for stock summarization
+    map_template = """Summarize the following text for the stock {stock}:
+    {text}
+    
+    Summary:"""
+    
+    # Reduce template for stock summarization
+    reduce_template = """You are given a set of summaries extracted from a longer text about stock news.
+    Create a concise, technical, comprehensive summary that combines all the important information about this stock {stock}.
+    Focus on quantitative data: revenue growth percentages, earnings, EPS, P/E ratios, margins, risks, and opportunities, year-over-year comparisons.
+    
+    SUMMARIES:
+    {summaries}
+    
+    COMPREHENSIVE SUMMARY:"""
+    
+    return map_reduce_summarize(
+        documents=documents,
+        callback=callback,
+        backend=backend,
+        model=model,
+        chunk_size=chunk_size,
+        batch_size=batch_size,
+        system_prompt=STOCK_SUMMARIZE_SYSTEM_PROMPT,
+        map_template=map_template,
+        reduce_template=reduce_template,
+        params={"stock": stock}
+    )
 
 
 def summarize(text: str, callback: Callable = None, 

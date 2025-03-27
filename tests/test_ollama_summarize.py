@@ -8,7 +8,7 @@ from langchain.schema import Document
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
-from ml_serving.ai_service import map_reduce_summarize
+from src.ml_serving.ai_service import map_reduce_summarize_stock
 
 
 def main():
@@ -39,17 +39,17 @@ At the same time, the stock is attractively priced, trading at a P/E ratio of un
     try:
         # Start the timer
         start_time = time.time()
-        
-        summary = map_reduce_summarize([Document(text)])
-        
+
+        summary = map_reduce_summarize_stock([Document(text)], "PLTR")
+
         # Calculate and display elapsed time
         elapsed_time = time.time() - start_time
         print(f"\nOllama summarization completed in {elapsed_time:.2f} seconds")
-        
+
         print("\nSummary results:")
         print(f"Title: {summary.get('title', 'N/A')}")
         print(f"Summary: {summary.get('summary', 'N/A')}")
-        
+
         # Print stock details if available
         stocks = summary.get('stocks', [])
         if stocks:
@@ -58,7 +58,7 @@ At the same time, the stock is attractively priced, trading at a P/E ratio of un
                 print(f"- {stock.get('ticker', 'N/A')}: {stock.get('name', 'N/A')}")
                 print(f"  Pros: {', '.join(stock.get('pros', []))}")
                 print(f"  Cons: {', '.join(stock.get('cons', []))}")
-        
+
         print("\nTest completed successfully!")
         return summary
     except Exception as e:

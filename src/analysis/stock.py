@@ -9,8 +9,9 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
+from analysis.economicnews import summarize_economic_news
 from analysis.macroeconomic import get_macroeconomic_context
-from ml_serving.ai_service import map_reduce_summarize
+from ml_serving.ai_service import map_reduce_summarize_stock
 from collectors.social import fetch_stocks_sentiment, fetch_stocks_social
 from collectors.nasdaq import (
     fetch_historical_quotes,
@@ -226,12 +227,13 @@ class Stock:
         # Summarize the articles
         if articles:
             # Use async_summarize to handle CPU-bound tasks
-            summaries = map_reduce_summarize(
+            summaries = map_reduce_summarize_stock(
                 articles, f"{self.symbol} ({self.meta['name']})"
             )
             report["summaries"] = summaries
         else:
             report["summaries"] = []
+        report["macroeconomic_news"] = summarize_economic_news()
         timings["summaries"] = time.time() - t_start
         return report, timings, start_total
 

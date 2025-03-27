@@ -50,7 +50,7 @@ def test_consult():
 
     # Get the path to the test file
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    test_file = os.path.join(current_dir, "MRVL_2025-03-16.yaml")
+    test_file = os.path.join(current_dir, "SMCI_2025-03-23.yaml")
     result = consult(test_file, backend="lmstudio", model="fin-r1-mlx")
 
     if result:

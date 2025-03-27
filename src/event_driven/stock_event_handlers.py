@@ -15,7 +15,7 @@ from collectors.nasdaq import fetch_nasdaq_data
 from collectors.social import get_sentiment_df
 from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
 from logger import get_logger
-FOUR_HOURS_SECONDS = 14400
+TWELVE_HOURS_SECONDS = 43200
 
 # Shared queues for inter-thread communication
 stock_request_queue = Queue()
@@ -104,7 +104,7 @@ class StockEventSystem:
     def _process_sentiment_stocks(self):
         try:
             current_time = datetime.now()
-            if not self.last_sentiment_check or (current_time - self.last_sentiment_check).total_seconds() >= FOUR_HOURS_SECONDS:
+            if not self.last_sentiment_check or (current_time - self.last_sentiment_check).total_seconds() >= TWELVE_HOURS_SECONDS:
                 self.last_sentiment_check = current_time
                 nasdaq_data = fetch_nasdaq_data()
                 sentiment_df = get_sentiment_df()

@@ -8,7 +8,7 @@ if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
 # Import the function to test
-from tests.mlx_summarize import mlx_summarize
+from tests.mlx_summarize import summarize
 
 def main():
     text = """
@@ -39,11 +39,11 @@ At the same time, the stock is attractively priced, trading at a P/E ratio of un
         # Start the timer
         start_time = time.time()
         
-        summary = mlx_summarize(text)
+        summary = summarize(text)
         
         # Calculate and display elapsed time
         elapsed_time = time.time() - start_time
-        print(f"\nMLX summarization completed in {elapsed_time:.2f} seconds")
+        print(f"\nSummarization completed in {elapsed_time:.2f} seconds")
         
         print("\nSummary results:")
         print(f"Title: {summary.get('title', 'N/A')}")

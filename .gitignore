@@ -145,4 +145,3 @@ chroma_db/*
 results/*
 .events/*
 .debug_dumps/*
-src/ml_serving/mlx_model

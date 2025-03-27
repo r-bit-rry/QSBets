@@ -11,8 +11,8 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.ml_serving.ai_service import consult
 
 
-class TestMlxConsult(unittest.TestCase):
-    """Test class for testing the MLX consult functionality"""
+class TestConsult(unittest.TestCase):
+    """Test class for testing the consult functionality"""
 
     def setUp(self):
         """Setup test environment"""

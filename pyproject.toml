@@ -20,14 +20,12 @@ dependencies = [
     "trafilatura",
     "azure-ai-inference",
     "edgartools",
-    "ollama",
     "diskcache",
     "chromadb",
     "rich",
     "praw", # for redditor api but currently unused
     "ta-lib",
     "fredapi",
-    "mlx-lm",
     "pyyaml",
     "streamlit",
     "plotly"

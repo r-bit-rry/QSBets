@@ -7,10 +7,6 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# MLX Configuration
-MLX_MODEL_PATH = os.environ.get("MLX_MODEL_PATH", "/Users/roy.belio/Repos/QSBets/ml_serving/mlx_model") # fino1 llama 8b is the one I downloaded and quantized
-MLX_NUM_WORKERS = int(os.environ.get("MLX_NUM_WORKERS", "4"))
-
 # Azure OpenAI Configuration
 AZURE_ENDPOINT = os.environ.get("OPENAI_API_BASE", "")
 AZURE_API_KEY = os.environ.get("OPENAI_API_KEY", "")
@@ -28,7 +24,7 @@ OLLAMA_HOST = os.environ.get("OLLAMA_HOST", "http://127.0.0.1:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "plutus3")
 
 # Default backend to use
-DEFAULT_BACKEND = os.environ.get("DEFAULT_AI_BACKEND", "mlx")
+DEFAULT_BACKEND = os.environ.get("DEFAULT_AI_BACKEND", "lmstudio")
 QWQ_KWARGS = {
     "max_tokens": 64000,
     "verbose": True,

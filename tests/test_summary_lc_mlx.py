@@ -21,53 +21,10 @@ from src.collectors.nasdaq import fetch_stock_news
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
-class MLXServerLLM(LLM):
-    """LangChain LLM implementation for MLX model server"""
-
-    model_server: Any = None
-    model_path: str = None
-
-    def __init__(self, model_server=None, model_path=None):
-        """Initialize with a model server or path"""
-        super().__init__()
-        if model_server:
-            self.model_server = model_server
-        elif model_path:
-            self.model_path = model_path
-            self.model_server = get_chat(model=model_path)
-        else:
-            # Use default initialization
-            self.model_server = get_chat()
-
-    def _llm_type(self) -> str:
-        return "mlx_server"
-
-    def _call(
-        self,
-        prompt: str,
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[BaseCallbackHandler] = None,
-        **kwargs
-    ) -> str:
-        """Process a prompt synchronously with the MLX model server"""
-        messages = [
-            SystemMessage(content="You are a helpful assistant that summarizes text."),
-            HumanMessage(content=prompt)
-        ]
-
-        # Use synchronous processing
-        result = self.model_server.process_sync(messages)
-
-        if "error" in result:
-            raise RuntimeError(f"MLX model error: {result['error']}")
-
-        return result.get("content", "")
-
-
 def map_reduce_summarize(documents: List[Document], stock: str, chunk_size: int = 10000):
     """Implement map-reduce summarization using langchain"""
     # Initialize the LLM
-    llm = MLXServerLLM()
+    llm = get_chat(model="glm-4-9b-chat-abliterated")
 
     # Create text splitter for chunking
     text_splitter = RecursiveCharacterTextSplitter(

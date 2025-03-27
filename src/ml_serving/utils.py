@@ -37,7 +37,7 @@ def get_chat(backend: str = "lmstudio", model: str = None, **kwargs) -> BaseChat
     Implements a singleton pattern to avoid multiple instances of the same model.
 
     Args:
-        backend: The backend to use (e.g., "azure", "mlx", "ollama", "lmstudio")
+        backend: The backend to use (e.g., "azure", "ollama", "lmstudio")
         model: The model name or path to use
 
     Returns:
@@ -45,9 +45,7 @@ def get_chat(backend: str = "lmstudio", model: str = None, **kwargs) -> BaseChat
     """
     # Resolve model if it's None
     if model is None:
-        if backend == "mlx":
-            model = os.getenv("MLX_MODEL_PATH")
-        elif backend == "ollama":
+        if backend == "ollama":
             model = os.getenv("OLLAMA_MODEL")
 
     # Create a key for the instance cache
@@ -79,14 +77,6 @@ def get_chat(backend: str = "lmstudio", model: str = None, **kwargs) -> BaseChat
                 model_name=model,
                 **kwargs,
             )
-    elif backend == "mlx":
-        from langchain_community.chat_models import ChatMLX
-        from langchain_community.llms.mlx_pipeline import MLXPipeline
-
-        llm = MLXPipeline.from_model_id(
-            model_id=model, cache=True, pipeline_kwargs=kwargs
-        )
-        instance = ChatMLX(llm=llm, **kwargs)
     elif backend == "ollama":
         from langchain_ollama import ChatOllama
 

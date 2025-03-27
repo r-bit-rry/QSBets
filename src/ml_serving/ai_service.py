@@ -157,7 +157,7 @@ def summarize(text: str, callback: Callable = None,
     Args:
         text: The text to summarize
         callback: Optional callback function for async processing
-        backend: Backend to use ('mlx', 'azure', 'ollama')
+        backend: Backend to use ('lmstudio', 'azure', 'ollama')
         metadata: Additional metadata to include in result
 
     Returns:
@@ -225,14 +225,14 @@ def consult(
 ) -> Union[Dict[str, Any], None]:
     """
     Consult the model with a stock data file for analysis
-    
+
     Args:
         filepath: Path to the JSON/YAML file containing stock data
         metadata: Additional metadata to include in the result
         callback: Function to call with the result when complete
-        backend: Backend to use ('mlx', 'azure', 'ollama')
+        backend: Backend to use ('lmstudio', 'azure', 'ollama')
         max_retries: Maximum number of retry attempts
-        
+
     Returns:
         Parsed JSON response with stock analysis or empty dict on failure
         If callback is provided, the result is passed to the callback and None is returned

@@ -149,7 +149,7 @@ class StockEventSystem:
                 time.sleep(5)
 
     def start_consult_loop(self):
-        self.logger.info("Starting consult loop for parallelized MLX evaluation")
+        self.logger.info("Starting consult loop for parallelized evaluation")
         results_file = os.path.join(self.results_dir, f"results_{datetime.now().strftime('%Y-%m-%d')}.jsonl")
 
         def on_consult_complete(result, analysis_metadata):

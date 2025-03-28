@@ -1,5 +1,6 @@
 import os
 import time
+from typing import List, Dict, Any, Union
 
 import requests
 from event_driven.event_bus import EventBus, EventType
@@ -11,74 +12,150 @@ logger = get_logger("telegram")
 DEFAULT_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 
+# Helper function to escape HTML characters in strings
+def escape_html(text: Any) -> str:
+    if isinstance(text, str):
+        return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    return str(text)
+
+# Helper function to format lists
+def format_list(items: List[Any]) -> str:
+    if not items:
+        return "None"
+    return "\n".join(f"• {escape_html(item)}" for item in items)
+
+# Helper function to format conditions list
+def format_conditions(conditions: List[Dict[str, Any]]) -> str:
+    if not conditions:
+        return "None specified"
+    
+    formatted_conditions = []
+    for cond in conditions:
+        desc = cond.get("description")
+        if desc:
+            formatted_conditions.append(f"• {escape_html(desc)}")
+        else:
+            indicator = escape_html(cond.get('indicator', 'N/A'))
+            operator = escape_html(cond.get('operator', 'N/A'))
+            value = escape_html(cond.get('value', 'N/A'))
+            formatted_conditions.append(f"• {indicator} {operator} {value}")
+            
+    return "\n".join(formatted_conditions)
+
+# Helper function to format profit target
+def format_profit_target(target: Union[Dict[str, Any], Any]) -> str:
+    if not isinstance(target, dict):
+        return escape_html(target) # Handle older formats or simple values
+
+    lines = []
+    primary = target.get("primary")
+    secondary = target.get("secondary")
+
+    if primary and isinstance(primary, dict):
+        price = primary.get('price')
+        percentage = primary.get('percentage')
+        line = f"Primary: {escape_html(price)}"
+        if percentage is not None:
+            line += f" ({escape_html(percentage)}%)"
+        lines.append(line)
+
+    if secondary and isinstance(secondary, dict):
+        price = secondary.get('price')
+        percentage = secondary.get('percentage')
+        line = f"Secondary: {escape_html(price)}"
+        if percentage is not None:
+            line += f" ({escape_html(percentage)}%)"
+        lines.append(line)
+        
+    return "\n".join(lines) if lines else "N/A"
+
+# Helper function to format stop loss
+def format_stop_loss(sl: Union[Dict[str, Any], Any]) -> str:
+    if not isinstance(sl, dict):
+        return escape_html(sl) # Handle older formats or simple values
+
+    price = sl.get('price')
+    percentage = sl.get('percentage')
+    line = f"{escape_html(price)}"
+    if percentage is not None:
+        line += f" ({escape_html(percentage)}% loss)"
+    return line if price is not None else "N/A"
+
+# Helper function to format entry strategy
+def format_entry_strategy(strategy: Dict[str, Any]) -> str:
+    if not strategy or not isinstance(strategy, dict):
+        return "N/A"
+        
+    parts = []
+    if "price" in strategy:
+        parts.append(f"<b>Price:</b> {escape_html(strategy['price'])}")
+    if "timing" in strategy:
+        parts.append(f"<b>Timing:</b> {escape_html(strategy['timing'])}")
+    if "conditions" in strategy:
+        parts.append(f"<b>Conditions:</b>\n{format_conditions(strategy['conditions'])}")
+    # Handle old 'technical_indicators' field if present
+    elif "technical_indicators" in strategy:
+         parts.append(f"<b>Technical Indicators:</b> {escape_html(strategy['technical_indicators'])}")
+
+    return "\n".join(parts)
+
+# Helper function to format exit strategy
+def format_exit_strategy(strategy: Dict[str, Any], is_hold: bool) -> str:
+    if not strategy or not isinstance(strategy, dict):
+        return "N/A"
+
+    parts = []
+    if "profit_target" in strategy:
+        parts.append(f"<b>Profit Target:</b>\n{format_profit_target(strategy['profit_target'])}")
+    if "stop_loss" in strategy:
+        parts.append(f"<b>Stop Loss:</b> {format_stop_loss(strategy['stop_loss'])}")
+    if "time_horizon" in strategy:
+        parts.append(f"<b>Time Horizon:</b> {escape_html(strategy['time_horizon'])}")
+    if is_hold and "trailing_stop" in strategy:
+         parts.append(f"<b>Trailing Stop:</b> {escape_html(strategy['trailing_stop'])}")
+    if "conditions" in strategy:
+        parts.append(f"<b>Conditions:</b>\n{format_conditions(strategy['conditions'])}")
+    # Handle old 'exit_conditions' field if present and 'conditions' is not
+    elif "exit_conditions" in strategy and isinstance(strategy['exit_conditions'], str):
+         parts.append(f"<b>Exit Conditions:</b> {escape_html(strategy['exit_conditions'])}")
+
+
+    return "\n".join(parts)
+
+
 def format_investment_message(result: dict) -> str:
     """
     Format investment analysis result for Telegram with HTML formatting.
     Handles both string-based fields and complex nested structures.
-    Supports both standard analysis and hold position analysis schemas.
+    Supports both standard analysis (CONSULT_PROMPT_V7) and hold position analysis (OWNERSHIP_PROMPT) schemas.
     """
     try:
         if not result:
             return "No analysis results available."
 
-        # Helper function to escape HTML characters in strings
-        def escape_html(text):
-            if isinstance(text, str):
-                return text.replace("<", "&lt;").replace(">", "&gt;")
-            return str(text)
+        # Filter out internal fields
+        displayed_result = {k: v for k, v in result.items()
+                            if k not in ['request_id', 'requested_by']}
 
-        # Helper function to format lists
-        def format_list(items):
-            if not items:
-                return "None"
-            return "\n".join(f"• {escape_html(item)}" for item in items)
-
-        # Helper function to format nested dictionaries
-        def format_dict(data):
-            if isinstance(data, str):
-                return escape_html(data)
-
-            if not isinstance(data, dict):
-                return escape_html(data)
-
-            formatted = []
-            for key, value in data.items():
-                key_display = key.replace("_", " ").title()
-
-                if isinstance(value, list):
-                    formatted.append(f"<b>{key_display}:</b>\n{format_list(value)}")
-                else:
-                    formatted.append(f"<b>{key_display}:</b> {escape_html(value)}")
-
-            return "\n".join(formatted)
-
-        # Filter out internal fields that shouldn't be displayed
-        displayed_result = {k: v for k, v in result.items() 
-                        if k not in ['request_id', 'requested_by']}
-        
         # Start building message
         message_parts = [
-            f"<b>Symbol:</b> {displayed_result.get('symbol', 'N/A')}",
-            f"<b>Rating:</b> {displayed_result.get('rating', 'N/A')}",
-            f"<b>Confidence:</b> {displayed_result.get('confidence', 'N/A')}",
+            f"<b>Symbol:</b> {escape_html(displayed_result.get('symbol', 'N/A'))}",
+            f"<b>Rating:</b> {escape_html(displayed_result.get('rating', 'N/A'))}",
+            f"<b>Confidence:</b> {escape_html(displayed_result.get('confidence', 'N/A'))}",
         ]
-        
-        # Detect if this is a hold position analysis by checking for specific fields
+
+        # Detect if this is a hold position analysis
         is_hold_analysis = 'purchase_price' in displayed_result
-        
+
         # Add hold position specific information
         if is_hold_analysis:
-            # Add purchase info
             if "purchase_price" in displayed_result:
-                message_parts.insert(1, f"<b>Purchase Price:</b> {displayed_result.get('purchase_price', 'N/A')}")
-            
-            # Add current price if available
+                message_parts.insert(1, f"<b>Purchase Price:</b> {escape_html(displayed_result.get('purchase_price', 'N/A'))}")
             if "current_price" in displayed_result:
-                message_parts.insert(2, f"<b>Current Price:</b> {displayed_result.get('current_price', 'N/A')}")
-            
-            # Add unrealized gain/loss if available
+                message_parts.insert(2, f"<b>Current Price:</b> {escape_html(displayed_result.get('current_price', 'N/A'))}")
             if "unrealized_gain_loss_pct" in displayed_result:
-                message_parts.insert(3, f"<b>Unrealized Gain/Loss:</b> {displayed_result.get('unrealized_gain_loss_pct', 'N/A')}%")
+                gain_loss = displayed_result.get('unrealized_gain_loss_pct', 'N/A')
+                message_parts.insert(3, f"<b>Unrealized Gain/Loss:</b> {escape_html(gain_loss)}{'%' if isinstance(gain_loss, (int, float)) else ''}")
 
         # Add reasoning
         if "reasoning" in displayed_result:
@@ -86,37 +163,25 @@ def format_investment_message(result: dict) -> str:
 
         # Add factors based on schema type
         if is_hold_analysis:
-            # Add hold factors if available
             if "hold_factors" in displayed_result:
                 message_parts.append(
                     f"<b>Hold Factors:</b>\n{format_list(displayed_result['hold_factors'])}"
                 )
-                
-            # Add risk factors if available
             if "risk_factors" in displayed_result:
                 message_parts.append(
                     f"<b>Risk Factors:</b>\n{format_list(displayed_result['risk_factors'])}"
                 )
-            
-            # Add exit conditions if available
-            if "exit_conditions" in displayed_result:
-                message_parts.append(
-                    f"<b>Exit Conditions:</b>\n{format_list(displayed_result['exit_conditions'])}"
-                )
-        else:
-            # Add bullish factors if available
+        else: # Standard analysis
             if "bullish_factors" in displayed_result:
                 message_parts.append(
                     f"<b>Bullish Factors:</b>\n{format_list(displayed_result['bullish_factors'])}"
                 )
-
-            # Add bearish factors if available
             if "bearish_factors" in displayed_result:
                 message_parts.append(
                     f"<b>Bearish Factors:</b>\n{format_list(displayed_result['bearish_factors'])}"
                 )
 
-        # Add macro impact if available
+        # Add macro impact
         if "macro_impact" in displayed_result:
             message_parts.append(
                 f"<b>Macro Impact:</b> {escape_html(displayed_result.get('macro_impact', ''))}"
@@ -124,31 +189,37 @@ def format_investment_message(result: dict) -> str:
 
         # Add strategy sections based on schema type
         if is_hold_analysis:
-            # Add exit strategy
+            # Add exit strategy for hold analysis
             if "exit_strategy" in displayed_result:
                 message_parts.append(
-                    f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
+                    f"<b>Exit Strategy:</b>\n{format_exit_strategy(displayed_result['exit_strategy'], is_hold=True)}"
                 )
-        else:
+        else: # Standard analysis
             # Add enter strategy
             if "enter_strategy" in displayed_result:
                 message_parts.append(
-                    f"<b>Enter Strategy:</b>\n{format_dict(displayed_result['enter_strategy'])}"
+                    f"<b>Enter Strategy:</b>\n{format_entry_strategy(displayed_result['enter_strategy'])}"
                 )
-
             # Add exit strategy
             if "exit_strategy" in displayed_result:
                 message_parts.append(
-                    f"<b>Exit Strategy:</b>\n{format_dict(displayed_result['exit_strategy'])}"
+                    f"<b>Exit Strategy:</b>\n{format_exit_strategy(displayed_result['exit_strategy'], is_hold=False)}"
+                )
+        
+        # Handle potential old format 'exit_conditions' if it was a list at the top level (hold analysis)
+        if is_hold_analysis and "exit_conditions" in displayed_result and isinstance(displayed_result["exit_conditions"], list):
+             message_parts.append(
+                    f"<b>Exit Conditions:</b>\n{format_list(displayed_result['exit_conditions'])}"
                 )
 
-        return "\n\n".join(message_parts)
-    
+
+        return "\n\n".join(part for part in message_parts if part) # Filter empty parts
+
     except Exception as e:
-        # Import needed only if there's an exception
         error_message = f"Failed to format message: {str(e)}\nOriginal data: {str(result)}"
-        dump_failed_text(error_message)
-        return f"Error formatting analysis results. Details have been logged. Error: {str(e)}"
+        logger.error(error_message, exc_info=True)
+        dump_failed_text(error_message) # Ensure this function exists and works
+        return f"Error formatting analysis results. Details logged. Error: {escape_html(str(e))}"
 
 def send_text_via_telegram(content: str, chat_id: str=DEFAULT_CHAT_ID):
     """
@@ -266,16 +337,86 @@ def listen_to_telegram():
 
 
 def test_send_text_via_telegram():
-    data = {
+    # Example using CONSULT_PROMPT_V7 structure
+    data_v7 = {
         "symbol": "TEST",
-        "rating": 68,
-        "confidence": 8,
-        "reasoning": "ChromaDex shows strong bullish momentum post-earnings with a 60% surge on 10.9M volume (10x average), breaking above all SMAs ($5.60-$5.64 cluster). Positive fundamentals: FY revenue +19% to $99.6M, first annual profit ($8.6M), and improving margins. Technicals show neutral RSI (48.98) post-surge, MACD nearing bullish crossover, but ADX (9.9) indicates weak trend strength. Risks include potential profit-taking after gap-up and mixed insider selling (net -37k shares last 3M).",
-        "enter_strategy": "entry_price: Pullback to $8.50 (near VWAP of $8.97)\nentry_timing: Immediate on confirmed support above $8.50\ntechnical_indicators: Price > SMA 20/50/100, MACD crossover above signal line, volume > 1M shares",
-        "exit_strategy": "profit_target: $10.50 (17% gain from $8.97)\nstop_loss: $7.75 (13.6% below entry)\ntime_horizon: 2-3 weeks (pre-earnings quiet period)\nexit_conditions: Close below SMA 20 ($8.50), RSI >70 (overbought), or volume <500k shares (loss of momentum)",
+        "rating": 75,
+        "confidence": 9,
+        "reasoning": "Strong ecosystem, services growth, and upcoming product cycles offset near-term supply chain risks. Technicals show consolidation near support.",
+        "bullish_factors": [
+            "Services revenue +15% YoY",
+            "Strong iPhone demand expected in H2",
+            "Share buyback program active ($90B authorized)"
+        ],
+        "bearish_factors": [
+            "Potential regulatory headwinds in EU",
+            "Macroeconomic slowdown impacting consumer spending",
+            "Increased competition in smartphone market"
+        ],
+        "macro_impact": "Rising interest rates could dampen consumer demand for high-ticket items, but strong brand loyalty provides resilience.",
+        "enter_strategy": {
+            "price": "170.50",
+            "timing": "On pullback to SMA50",
+            "conditions": [
+                {"indicator": "rsi", "operator": ">", "value": 50, "description": "RSI holding above 50"},
+                {"indicator": "macd", "operator": "crosses_above", "value": "signal_line", "description": "MACD bullish crossover"}
+            ]
+        },
+        "exit_strategy": {
+            "profit_target": {
+                "primary": {"price": 185.00, "percentage": 8.5},
+                "secondary": {"price": 195.00, "percentage": 14.4}
+            },
+            "stop_loss": {"price": 165.00, "percentage": 3.2},
+            "time_horizon": "4-6 weeks",
+            "conditions": [
+                {"indicator": "price", "operator": "<", "value": "sma100", "description": "Close below SMA100"},
+                {"indicator": "macd", "operator": "crosses_below", "value": "signal_line", "description": "MACD bearish crossover"}
+            ]
+        }
     }
-    message = format_investment_message(data)
-    send_text_via_telegram(message)
+    
+    # Example using OWNERSHIP_PROMPT structure
+    data_own = {
+        "symbol": "TEST",
+        "purchase_price": 280.00,
+        "current_price": 310.50,
+        "unrealized_gain_loss_pct": 10.89,
+        "rating": 85, # Hold rating
+        "confidence": 9,
+        "reasoning": "Position showing solid gain. Cloud growth remains robust, AI integration provides significant upside. Hold based on strong fundamentals and technical support.",
+        "hold_factors": [
+            "Azure revenue growth +27% YoY",
+            "Strong AI positioning with OpenAI partnership",
+            "Consistent dividend increases"
+        ],
+        "risk_factors": [
+            "Antitrust scrutiny increasing globally",
+            "Slowing PC market affecting Windows revenue",
+            "Integration challenges with Activision Blizzard"
+        ],
+        "macro_impact": "Resilient enterprise spending benefits cloud segment, though broader economic slowdown could impact other areas.",
+        "exit_strategy": {
+            "stop_loss": {"price": 295.00, "percentage": 5.0}, # Updated SL based on current price
+            "profit_target": {"primary": {"price": 330.00, "percentage": 6.3}}, # Revised PT
+            "time_horizon": "6-12 months",
+            "trailing_stop": "7%",
+            "conditions": [
+                {"indicator": "price", "operator": "<", "value": "sma200", "description": "Close below SMA200"},
+                {"indicator": "fundamental", "operator": "deteriorates", "value": "cloud_growth < 20%", "description": "Azure growth slows significantly"}
+            ]
+        }
+    }
+
+    print("--- Formatting Standard Analysis (V7) ---")
+    message_v7 = format_investment_message(data_v7)
+    print(message_v7)
+    send_text_via_telegram(message_v7) # Uncomment to send
+
+    print("\n\n--- Formatting Hold Analysis (Ownership) ---")
+    message_own = format_investment_message(data_own)
+    print(message_own)
+    send_text_via_telegram(message_own) # Uncomment to send
 
 if __name__ == "__main__":
     # test_send_text_via_telegram()

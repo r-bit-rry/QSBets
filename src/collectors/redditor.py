@@ -15,7 +15,6 @@ from rich.progress import track
 import threading
 from threading import Event
 import time
-from storage.chromadb_integration import ChromaDBSaver
 from logger import get_logger
 
 console = Console(record=True)
@@ -66,9 +65,6 @@ class collect:
             The method also checks for the existence of the 'error_log' folder and creates it if not present.
         """
         self.reddit = reddit_client
-        self.redditor_saver = ChromaDBSaver(collection_name="redditor")
-        self.submission_saver = ChromaDBSaver(collection_name="submission")
-        self.comment_saver = ChromaDBSaver(collection_name="comment")
 
         self.error_log_path = os.path.join(os.getcwd(), "error_log")
         os.makedirs(self.error_log_path, exist_ok=True)
@@ -1107,29 +1103,12 @@ def scrape():
         subreddits=subreddits, sort_types=sort_types, limit=20, level=2
     )
 
-
-def query_and_debug(collection_name: str, query_filter: str):
-    # Instantiate the ChromaDB saver for the specified collection
-    saver = ChromaDBSaver(collection_name=collection_name)
-
-    # Query documents using the provided filter.
-    # NOTE: Adjust this call to match the actual API of ChromaDBSaver.
-    collection = saver.client.get_collection(collection_name)
-    results = collection.query(query_texts=[query_filter])  # e.g., query({"field": "value"})
-
-    print(f"Found {len(results)} document(s) in {collection_name}:")
-    for doc in results:
-        print(json.dumps(doc, indent=2))
-
-
 def main():
     logger.info("Available collections: redditor, submission, comment")
     collection = input("Enter collection to query: ").strip()
 
     logger.info("Provide a basic query as a field and value.")
     value = input("Enter value to match: ").strip()
-
-    query_and_debug(collection, value)
 
 
 if __name__ == "__main__":

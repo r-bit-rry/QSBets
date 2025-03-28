@@ -98,13 +98,14 @@ def find_latest_file(directory, pattern, symbol=None):
 
 def load_analysis_doc(symbol):
     """Load the analysis document for a specific symbol."""
-    analysis_docs_path = "./analysis_docs"
+    # Assume script is in src, analysis_docs is ../analysis_docs
+    analysis_docs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../analysis_docs"))
     latest_file = find_latest_file(analysis_docs_path, f"{symbol.lower()}.yaml", symbol) # More specific pattern
 
     if not latest_file:
         # Fallback: Find any latest yaml file if symbol-specific not found (consider if this is desired)
-        # latest_file = find_latest_file(analysis_docs_path, ".yaml") 
-        st.warning(f"No analysis document found specifically for {symbol}.")
+        # latest_file = find_latest_file(analysis_docs_path, ".yaml")
+        st.warning(f"No analysis document found specifically for {symbol} in {analysis_docs_path}.")
         return None, None
 
     try:
@@ -120,9 +121,13 @@ def load_analysis_doc(symbol):
         st.error(f"Error loading analysis document {latest_file}: {e}")
         return None, None
 
-
 def load_result_for_symbol(results_path, symbol):
     """Find the result for a specific symbol in a results file."""
+    # Ensure the path exists before trying to open
+    if not os.path.exists(results_path):
+        st.error(f"Results file not found: {results_path}")
+        return None
+
     try:
         with open(results_path, "r") as file:
             # Handle potential JSON decoding errors per line
@@ -133,16 +138,14 @@ def load_result_for_symbol(results_path, symbol):
                 except json.JSONDecodeError as e:
                     st.warning(f"Skipping invalid JSON on line {i+1} in {results_path}: {e}")
                     continue
-        
+
         for result in results:
             # Case-insensitive symbol comparison
             if result.get("symbol", "").upper() == symbol.upper():
                 return result
-        
+
         return None # Symbol not found in this file
-    except FileNotFoundError:
-        st.error(f"Results file not found: {results_path}")
-        return None
+    # Removed FileNotFoundError as we check existence above
     except Exception as e:
         st.error(f"Error loading results from {results_path}: {e}")
         return None
@@ -150,7 +153,8 @@ def load_result_for_symbol(results_path, symbol):
 
 def load_results():
     """Load the latest results file from ../results/results_YYYY-MM-DD.jsonl."""
-    results_dir = "../results" # Corrected path
+    # Assume script is in src, results is ../results
+    results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../results"))
     results = []
     latest_results_filename = None
     latest_date = None
@@ -254,6 +258,8 @@ def create_technical_chart(indicators):
         st.warning("No valid X-axis data for charting.")
         return go.Figure()
 
+    x_len = len(x_axis)
+    
     # --- Row 1: Price & Volume ---
     if quotes_df is not None:
         # Candlestick chart for price
@@ -285,19 +291,22 @@ def create_technical_chart(indicators):
     # Add Moving Averages to Price Chart
     for sma, color, dash in [('sma_20', 'blue', 'solid'), ('sma_50', 'orange', 'solid'), ('sma_100', 'green', 'dash')]:
         if sma in indicators and indicators[sma]:
-            fig.add_trace(go.Scatter(x=x_axis, y=indicators[sma], mode='lines', 
-                                    name=sma.upper(), line=dict(color=color, dash=dash, width=1)), 
+            # Ensure indicator data matches x_axis length
+            indicator_data = indicators[sma][-x_len:] if len(indicators[sma]) >= x_len else indicators[sma]
+            fig.add_trace(go.Scatter(x=x_axis, y=indicator_data, mode='lines',
+                                    name=sma.upper(), line=dict(color=color, dash=dash, width=1)),
                           row=1, col=1, secondary_y=False)
 
     # --- Row 2: Trend Indicators (BB, EMA, ADX) ---
     # Bollinger Bands
     if 'bollinger_bands' in indicators and indicators['bollinger_bands']:
         bb_data = indicators['bollinger_bands']
-        # Ensure bb_data is a list of dicts
+        # Ensure bb_data is a list of dicts and slice it
         if isinstance(bb_data, list) and all(isinstance(item, dict) for item in bb_data):
-            upper_band = [bb.get('upper') for bb in bb_data]
-            middle_band = [bb.get('middle') for bb in bb_data]
-            lower_band = [bb.get('lower') for bb in bb_data]
+            bb_data_sliced = bb_data[-x_len:] if len(bb_data) >= x_len else bb_data
+            upper_band = [bb.get('upper') for bb in bb_data_sliced]
+            middle_band = [bb.get('middle') for bb in bb_data_sliced]
+            lower_band = [bb.get('lower') for bb in bb_data_sliced]
 
             fig.add_trace(go.Scatter(x=x_axis, y=upper_band, mode='lines', line=dict(color='rgba(250,128,114,0.5)', width=1), name='Upper BB'), row=2, col=1, secondary_y=False)
             fig.add_trace(go.Scatter(x=x_axis, y=middle_band, mode='lines', line=dict(color='rgba(0,128,0,0.5)', width=1), name='Middle BB'), row=2, col=1, secondary_y=False)
@@ -309,14 +318,16 @@ def create_technical_chart(indicators):
 
     # ADX on secondary axis
     if 'adx' in indicators and indicators['adx']:
-        fig.add_trace(go.Scatter(x=x_axis, y=indicators['adx'], mode='lines', name='ADX', line=dict(color='brown', width=1.5)), row=2, col=1, secondary_y=True)
+        indicator_data = indicators['adx'][-x_len:] if len(indicators['adx']) >= x_len else indicators['adx']
+        fig.add_trace(go.Scatter(x=x_axis, y=indicator_data, mode='lines', name='ADX', line=dict(color='brown', width=1.5)), row=2, col=1, secondary_y=True)
         # ADX reference line
         fig.add_shape(type="line", x0=x_axis[0], x1=x_axis[-1], y0=25, y1=25, line=dict(color="brown", width=1, dash="dash"), row=2, col=1, secondary_y=True)
 
     # --- Row 3: Oscillators (RSI, Stoch, CCI) ---
     # RSI
     if 'rsi' in indicators and indicators['rsi']:
-        fig.add_trace(go.Scatter(x=x_axis, y=indicators['rsi'], mode='lines', name='RSI', line=dict(color='blue', width=1.5)), row=3, col=1, secondary_y=False)
+        indicator_data = indicators['rsi'][-x_len:] if len(indicators['rsi']) >= x_len else indicators['rsi']
+        fig.add_trace(go.Scatter(x=x_axis, y=indicator_data, mode='lines', name='RSI', line=dict(color='blue', width=1.5)), row=3, col=1, secondary_y=False)
         # RSI reference lines
         fig.add_shape(type="line", x0=x_axis[0], x1=x_axis[-1], y0=70, y1=70, line=dict(color="red", width=1, dash="dash"), row=3, col=1, secondary_y=False)
         fig.add_shape(type="line", x0=x_axis[0], x1=x_axis[-1], y0=30, y1=30, line=dict(color="green", width=1, dash="dash"), row=3, col=1, secondary_y=False)
@@ -325,8 +336,9 @@ def create_technical_chart(indicators):
     if 'stochastic_14_3_3' in indicators and indicators['stochastic_14_3_3']:
         stoch_data = indicators['stochastic_14_3_3']
         if isinstance(stoch_data, list) and all(isinstance(item, dict) for item in stoch_data):
-            stoch_k = [stoch.get('stochastic_k') for stoch in stoch_data]
-            stoch_d = [stoch.get('stochastic_d') for stoch in stoch_data]
+            stoch_data_sliced = stoch_data[-x_len:] if len(stoch_data) >= x_len else stoch_data
+            stoch_k = [stoch.get('stochastic_k') for stoch in stoch_data_sliced]
+            stoch_d = [stoch.get('stochastic_d') for stoch in stoch_data_sliced]
             fig.add_trace(go.Scatter(x=x_axis, y=stoch_k, mode='lines', name='Stoch %K', line=dict(color='orange', width=1)), row=3, col=1, secondary_y=False)
             fig.add_trace(go.Scatter(x=x_axis, y=stoch_d, mode='lines', name='Stoch %D', line=dict(color='green', width=1)), row=3, col=1, secondary_y=False)
             # Stochastic reference lines
@@ -335,7 +347,8 @@ def create_technical_chart(indicators):
 
     # CCI on secondary axis
     if 'cci' in indicators and indicators['cci']:
-        fig.add_trace(go.Scatter(x=x_axis, y=indicators['cci'], mode='lines', name='CCI', line=dict(color='purple', width=1.5)), row=3, col=1, secondary_y=True)
+        indicator_data = indicators['cci'][-x_len:] if len(indicators['cci']) >= x_len else indicators['cci']
+        fig.add_trace(go.Scatter(x=x_axis, y=indicator_data, mode='lines', name='CCI', line=dict(color='purple', width=1.5)), row=3, col=1, secondary_y=True)
         # CCI reference lines
         fig.add_shape(type="line", x0=x_axis[0], x1=x_axis[-1], y0=100, y1=100, line=dict(color="red", width=1, dash="dot"), row=3, col=1, secondary_y=True)
         fig.add_shape(type="line", x0=x_axis[0], x1=x_axis[-1], y0=-100, y1=-100, line=dict(color="green", width=1, dash="dot"), row=3, col=1, secondary_y=True)
@@ -345,9 +358,10 @@ def create_technical_chart(indicators):
     if 'macd' in indicators and indicators['macd']:
         macd_data = indicators['macd']
         if isinstance(macd_data, list) and all(isinstance(item, dict) for item in macd_data):
-            macd_values = [macd.get('macd') for macd in macd_data]
-            signal_values = [macd.get('signal') for macd in macd_data]
-            hist_values = [macd.get('hist') for macd in macd_data]
+            macd_data_sliced = macd_data[-x_len:] if len(macd_data) >= x_len else macd_data
+            macd_values = [macd.get('macd') for macd in macd_data_sliced]
+            signal_values = [macd.get('signal') for macd in macd_data_sliced]
+            hist_values = [macd.get('hist') for macd in macd_data_sliced]
 
             # MACD Line
             fig.add_trace(go.Scatter(x=x_axis, y=macd_values, mode='lines', name='MACD', line=dict(color='blue', width=1.5)), row=4, col=1)
@@ -579,13 +593,14 @@ def fetch_stock_data(symbol, period):
         press_releases = fetch_stock_press_releases(symbol)
         press_df = pd.DataFrame([json.loads(item) for item in press_releases]) if press_releases else pd.DataFrame()
 
-        # Fetch indicators for the full period needed for calculation, but chart might show 'days'
-        # Note: fetch_technical_indicators needs enough 'period' data for calculations like SMA100
-        indicators = fetch_technical_indicators(symbol, period=max(period, 150), days=period) # Ensure enough data for calculation
+        # Fetch indicators: Need period + ~150 days for calculation buffer,
+        # but ask the function to return only the last 'period' days.
+        calculation_period = period + 150
+        indicators = fetch_technical_indicators(symbol, period=calculation_period, days=period)
 
         # Fetch historical data separately for the exact period requested for display consistency
-        historical_data = fetch_historical_quotes(symbol, period=period) 
-        
+        historical_data = fetch_historical_quotes(symbol, period=period)
+
         # Add historical quotes into indicators dict if available
         if historical_data:
             df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
@@ -594,8 +609,8 @@ def fetch_stock_data(symbol, period):
                 if not pd.api.types.is_datetime64_any_dtype(df.index):
                     df.index = pd.to_datetime(df.index)
                 df = df.sort_index()
-                # Convert Timestamp keys to string for JSON compatibility if needed later
-                # historical_dict = {k.strftime('%Y-%m-%d %H:%M:%S'): v for k, v in df.to_dict("index").items()}
+                # Ensure historical quotes match the requested period length if slicing occurred in indicators
+                df = df.iloc[-period:]
                 indicators["historical_quotes"] = df.to_dict("index") # Keep as dict with datetime index for charting
 
         return nasdaq_data, stock_data, news_df, press_df, indicators
@@ -626,7 +641,7 @@ def main():
     # Decide which symbol to use
     symbol = manual_symbol if manual_symbol != selected_symbol_sidebar else selected_symbol_sidebar
     
-    period = st.sidebar.slider("Select Chart Period (days)", min_value=30, max_value=365, value=150, step=10)
+    period = st.sidebar.slider("Select Chart Period (days)", min_value=30, max_value=365, value=30, step=10)
     
     st.sidebar.markdown("---")
     st.sidebar.info(f"Current Date: {datetime.now().strftime('%Y-%m-%d')}")
@@ -692,7 +707,9 @@ def main():
     analysis_data, analysis_file_name = load_analysis_doc(symbol)
     consultation_result_data = None
     if latest_results_file:
-        results_full_path = os.path.join("./results", latest_results_file) # Reconstruct full path if needed
+        # Construct absolute path for results file
+        results_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../results"))
+        results_full_path = os.path.join(results_dir, latest_results_file)
         consultation_result_data = load_result_for_symbol(results_full_path, symbol)
 
     tab_analysis, tab_consultation = st.tabs(["Analysis Report", "Consultation Results"])
@@ -894,7 +911,7 @@ def main():
                         x="Symbol",
                         y="Rating",
                         color="Rating",
-                        color_continuous_scale=px.colors.sequential.RdYlGn, # Red-Yellow-Green scale
+                        color_continuous_scale='RdYlGn', # Use string for color scale
                         range_color=[0, 100], # Explicit range 0-100
                         labels={"Rating": "Recommendation Rating (0-100)"},
                         title="Comparison of Stock Ratings"

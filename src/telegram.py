@@ -145,12 +145,11 @@ def format_investment_message(result: dict) -> str:
         ]
 
         # Detect if this is a hold position analysis
-        is_hold_analysis = 'purchase_price' in displayed_result
+        is_hold_analysis = 'purchase_price' in displayed_result and displayed_result["bearish_factors"] is not None
 
         # Add hold position specific information
         if is_hold_analysis:
-            if "purchase_price" in displayed_result:
-                message_parts.insert(1, f"<b>Purchase Price:</b> {escape_html(displayed_result.get('purchase_price', 'N/A'))}")
+            message_parts.insert(1, f"<b>Purchase Price:</b> {escape_html(displayed_result.get('purchase_price', 'N/A'))}")
             if "current_price" in displayed_result:
                 message_parts.insert(2, f"<b>Current Price:</b> {escape_html(displayed_result.get('current_price', 'N/A'))}")
             if "unrealized_gain_loss_pct" in displayed_result:
@@ -408,14 +407,14 @@ def test_send_text_via_telegram():
         }
     }
 
-    print("--- Formatting Standard Analysis (V7) ---")
+    logger.info("--- Formatting Standard Analysis (V7) ---")
     message_v7 = format_investment_message(data_v7)
-    print(message_v7)
+    logger.info(message_v7)
     send_text_via_telegram(message_v7) # Uncomment to send
 
-    print("\n\n--- Formatting Hold Analysis (Ownership) ---")
+    logger.info("\n\n--- Formatting Hold Analysis (Ownership) ---")
     message_own = format_investment_message(data_own)
-    print(message_own)
+    logger.info(message_own)
     send_text_via_telegram(message_own) # Uncomment to send
 
 if __name__ == "__main__":

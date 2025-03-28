@@ -1,6 +1,7 @@
 """Event handlers for stock-related events in the QSBets system."""
 import os
 import json
+import sqlite3
 import time
 import threading
 from datetime import datetime
@@ -13,6 +14,8 @@ from analysis.stock import Stock
 from ml_serving.ai_service import consult
 from collectors.nasdaq import fetch_nasdaq_data
 from collectors.social import get_sentiment_df
+from event_driven.utils import _get_db_connection, _parse_conditions_db, _parse_profit_target_db, _parse_stop_loss_db
+from src.analysis.macro_economy import make_macro_yaml
 from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
 from logger import get_logger
 TWELVE_HOURS_SECONDS = 43200
@@ -33,7 +36,8 @@ class StockEventSystem:
         os.makedirs(self.analysis_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
         self.sentiment_stocks_limit = 10
-        self.quality_rating_threshold = 60
+        self.quality_rating_threshold = 70 # Adjusted threshold for quality rating
+        self.quality_confidence_threshold = 8 # Added threshold for confidence
         self.last_sentiment_check = None
         self._register_event_handlers()
 
@@ -78,26 +82,94 @@ class StockEventSystem:
         stock_request_queue.queue.insert(0, request_data)
 
     def handle_analysis_complete(self, event_data: Dict[str, Any]) -> None:
+        """Handles completed analysis, sends Telegram message, and saves high-quality recommendations."""
         symbol = event_data.get("symbol")
         requested_by = event_data.get("requested_by")
+        rating = event_data.get("rating", 0)
+        confidence = event_data.get("confidence", 0)
+        is_ownership_analysis = "purchase_price" in event_data # Check if it's an ownership analysis
+
+        # Send Telegram notification if requested
         if requested_by:
             try:
-                send_text_via_telegram(format_investment_message(event_data), requested_by)
+                # Only send if it's a direct request OR meets quality threshold for general channel
+                if requested_by != os.getenv("TELEGRAM_CHAT_ID") or \
+                   (rating >= self.quality_rating_threshold and confidence >= self.quality_confidence_threshold):
+                    send_text_via_telegram(format_investment_message(event_data), requested_by)
             except Exception:
-                self.logger.error(f"Failed to send analysis for {symbol}", exc_info=True)
-        if event_data.get("rating", 0) > self.quality_rating_threshold:
-            self.logger.info(f"High quality stock detected: {symbol} with rating {event_data.get('rating')}")
+                self.logger.error(f"Failed to send analysis for {symbol} via Telegram", exc_info=True)
+
+        # Save high-quality BUY recommendations to database (ignore ownership analysis for now)
+        if not is_ownership_analysis and rating >= self.quality_rating_threshold and confidence >= self.quality_confidence_threshold:
+            self.logger.info(f"High quality recommendation detected: {symbol} (Rating: {rating}, Confidence: {confidence}). Saving to DB.")
+            conn = None
+            try:
+                conn, cursor = _get_db_connection()
+                recommendation_date = datetime.now().strftime('%Y-%m-%d')
+
+                # Extract and parse strategy details for DB
+                enter_strategy = event_data.get('enter_strategy', {})
+                exit_strategy = event_data.get('exit_strategy', {})
+
+                entry_price_str = str(enter_strategy.get('price', '')) # Store as string
+                entry_timing_str = enter_strategy.get('timing', '')
+                # Entry conditions are not currently stored in the simple DB schema
+
+                profit_target_str = _parse_profit_target_db(exit_strategy.get('profit_target'))
+                stop_loss_str = _parse_stop_loss_db(exit_strategy.get('stop_loss'))
+                time_horizon_str = exit_strategy.get('time_horizon', '')
+                exit_conditions_str = _parse_conditions_db(exit_strategy.get('conditions'))
+
+                # Store the full JSON response for potential future use/parsing
+                strategy_json = json.dumps(event_data)
+
+                cursor.execute('''
+                INSERT OR IGNORE INTO recommendations
+                (symbol, recommendation_date, rating, confidence, entry_price, entry_timing, profit_target, stop_loss, time_horizon, exit_conditions)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (symbol, recommendation_date, rating, confidence, entry_price_str, entry_timing_str, profit_target_str, stop_loss_str, time_horizon_str, exit_conditions_str))
+
+                if cursor.rowcount > 0:
+                    self.logger.info(f"Successfully saved recommendation for {symbol} on {recommendation_date} to DB.")
+                else:
+                     self.logger.info(f"Recommendation for {symbol} on {recommendation_date} already exists in DB.")
+
+                conn.commit()
+
+            except sqlite3.Error as db_err:
+                self.logger.error(f"Database error saving recommendation for {symbol}: {db_err}", exc_info=True)
+                if conn:
+                    conn.rollback()
+            except Exception as e:
+                self.logger.error(f"Unexpected error saving recommendation for {symbol}: {e}", exc_info=True)
+                if conn:
+                    conn.rollback() # Rollback on any error during processing
+            finally:
+                if conn:
+                    conn.close()
+        elif rating >= self.quality_rating_threshold and confidence >= self.quality_confidence_threshold:
+             self.logger.info(f"High quality ownership analysis for {symbol} (Rating: {rating}, Confidence: {confidence}). Not saving to recommendations DB.")
+        else:
+            self.logger.debug(f"Recommendation for {symbol} did not meet quality criteria (Rating: {rating}, Confidence: {confidence}). Not saving.")
+
 
     def start_main_loop(self):
         self.logger.info("Starting main loop for Telegram and data collection")
         while True:
             try:
+                # Get result from the consult queue
                 result = consult_result_queue.get(timeout=1)
-                # Respond to any request not from the main chat or if rating exceeds threshold for main chat
-                if result.get("requested_by") != os.getenv("TELEGRAM_CHAT_ID") or result.get("rating", 0) > self.quality_rating_threshold:
-                    self.event_bus.publish(EventType.ANALYSIS_COMPLETE, result)
+
+                # Publish ANALYSIS_COMPLETE event. The handler will decide on Telegram msg & DB saving.
+                self.event_bus.publish(EventType.ANALYSIS_COMPLETE, result)
+
             except Empty:
+                # Queue is empty, proceed to other tasks
                 pass
+            except Exception as e:
+                 self.logger.error(f"Error processing result from consult queue: {e}", exc_info=True)
+
+            # Check for sentiment stocks periodically
             self._process_sentiment_stocks()
             time.sleep(60)
 
@@ -150,21 +222,29 @@ class StockEventSystem:
 
     def start_consult_loop(self):
         self.logger.info("Starting consult loop for parallelized evaluation")
-        results_file = os.path.join(self.results_dir, f"results_{datetime.now().strftime('%Y-%m-%d')}.jsonl")
+        macroeconomic_data = make_macro_yaml()
 
         def on_consult_complete(result, analysis_metadata):
+            # Define results file path here to ensure it uses the date the consultation finished
+            results_file = os.path.join(self.results_dir, f"results_{datetime.now().strftime('%Y-%m-%d')}.jsonl")
             if not result or "error" in result:
-                self.logger.error(f"Consult error: {result.get('error', 'Unknown error')}")
+                self.logger.error(f"Consult error for {analysis_metadata.get('symbol', 'unknown')}: {result.get('error', 'Unknown error')}")
+                # Optionally put an error marker in the queue or handle differently
+                # consult_result_queue.put({"error": result.get('error', 'Unknown error'), **analysis_metadata})
                 return
             try:
-                result["request_id"] = analysis_metadata.get("request_id")
-                result["requested_by"] = analysis_metadata.get("requested_by")
+                # Add metadata back to the result before putting it on the queue
+                full_result = {**result, **analysis_metadata}
+
+                # Write raw result to JSONL file
                 with open(results_file, "a") as f:
-                    f.write(json.dumps(result) + "\n")
-                consult_result_queue.put(result)
-                self.logger.info(f"Consultation for {result.get('symbol', 'unknown')} completed with rating {result.get('rating', 'N/A')}")
+                    f.write(json.dumps(full_result) + "\n")
+
+                # Put the combined result onto the queue for the main loop to handle
+                consult_result_queue.put(full_result)
+                self.logger.info(f"Consultation for {full_result.get('symbol', 'unknown')} completed with rating {full_result.get('rating', 'N/A')}. Queued for handling.")
             except Exception as e:
-                self.logger.error(f"Error processing consult result: {str(e)}", exc_info=True)
+                self.logger.error(f"Error processing consult result for {analysis_metadata.get('symbol', 'unknown')}: {str(e)}", exc_info=True)
 
         while True:
             try:
@@ -172,26 +252,31 @@ class StockEventSystem:
                 symbol = analysis.get("symbol")
                 file_path = analysis.get("file_path")
                 self.logger.info(f"Submitting consultation for {symbol}")
+                # Prepare metadata, ensuring purchase_price is included if present
                 metadata = {
                     "symbol": symbol,
-                    "file_path": file_path,
+                    "file_path": file_path, # Keep for potential debugging, though not strictly needed by consult
                     "request_id": analysis.get("request_id"),
                     "requested_by": analysis.get("requested_by"),
-                    "purchase_price": analysis.get("purchase_price"),
                 }
+                if "purchase_price" in analysis and analysis["purchase_price"]:
+                     metadata["purchase_price"] = analysis.get("purchase_price")
+
+                with open(file_path, 'r') as file:
+                    document = file.read()
+                combined_data = f"{macroeconomic_data}\n\n{document}"
                 threading.Thread(
                     target=lambda: consult(
-                        file_path, 
-                        metadata=metadata, 
-                        callback=lambda result: on_consult_complete(result, metadata)
+                        data=combined_data,
+                        metadata=metadata, # Pass metadata to consult
+                        callback=lambda consult_res: on_consult_complete(consult_res, metadata) # Pass metadata to callback context
                     ),
                     daemon=True
                 ).start()
-                self.logger.info(f"Consultation for {symbol} submitted")
             except Empty:
                 continue
             except Exception as e:
-                self.logger.error(f"Error in consult loop: {str(e)}", exc_info=True)
+                self.logger.error(f"Error in consult loop submitting job: {str(e)}", exc_info=True)
                 time.sleep(5)
 
 
@@ -202,12 +287,12 @@ def initialize():
     """Initialize the stock event handlers system"""
     bus = EventBus()
     bus.start()
-    bus.start_background_loop()
+    # bus.start_background_loop() # Ensure this is needed and doesn't conflict if loops run in threads
     threads = [
-        threading.Thread(target=stock_system.start_main_loop, daemon=True),
-        threading.Thread(target=stock_system.start_analysis_loop, daemon=True),
-        threading.Thread(target=stock_system.start_consult_loop, daemon=True),
-        threading.Thread(target=listen_to_telegram, daemon=True)
+        threading.Thread(target=stock_system.start_main_loop, daemon=True, name="MainLoopThread"),
+        threading.Thread(target=stock_system.start_analysis_loop, daemon=True, name="AnalysisLoopThread"),
+        threading.Thread(target=stock_system.start_consult_loop, daemon=True, name="ConsultLoopThread"),
+        threading.Thread(target=listen_to_telegram, daemon=True, name="TelegramListenThread")
     ]
     for thread in threads:
         thread.start()
@@ -217,7 +302,13 @@ def initialize():
 if __name__ == "__main__":
     initialize()
     try:
+        # Keep the main thread alive
         while True:
-            time.sleep(1)
+            # Optional: Check thread health
+            alive_threads = [t.name for t in threading.enumerate() if t.is_alive()]
+            get_logger("stock_events").debug(f"Active threads: {alive_threads}")
+            time.sleep(60) # Check every minute
     except KeyboardInterrupt:
+        get_logger("stock_events").info("Shutdown signal received. Stopping event bus.")
         EventBus().stop()
+        get_logger("stock_events").info("Event bus stopped. Exiting.")

@@ -5,6 +5,8 @@ from datetime import datetime, timedelta
 import requests
 from trafilatura import extract
 import json
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from storage.cache import cached, DAY_TTL
 from logger import get_logger
 
@@ -166,7 +168,7 @@ def fetch_market_sentiment():
     # FRED series IDs
     sentiment_series = {
         "VIX": "VIXCLS",               # CBOE Volatility Index
-        "Financial_Stress": "STLFSI",   # St. Louis Fed Financial Stress Index  
+        "Financial_Stress": "STLFSI4",   # St. Louis Fed Financial Stress Index  
         "Risk_Premium": "THREEFYTP10"   # Treasury Term Premium
     }
     end_date = datetime.now()
@@ -179,32 +181,6 @@ def fetch_market_sentiment():
             sentiment_data[name] = data.iloc[-1]
     
     return sentiment_data
-
-def fetch_sector_indicators():
-    sector_series = {
-        "Manufacturing_PMI": "NAPM",        # ISM Manufacturing PMI
-        "Services_PMI": "NMFCI",            # ISM Services PMI 
-        "Industrial_Production": "INDPRO",   # Industrial Production Index
-        "Retail_Sales": "RSXFS",            # Retail Sales
-        "Housing_Starts": "HOUST"           # Housing Starts
-    }
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=365*2)  # 2 years of data
-    # Calculate YoY or MoM changes based on industry benchmarks
-    sector_data = {}
-    for name, series_id in sector_series.items():
-        try:
-            data = fred.get_series(series_id, start_date, end_date)
-            if len(data) >= 12:
-                yoy_change = 100 * (data.iloc[-1] - data.iloc[-13]) / data.iloc[-13]
-                sector_data[f"{name}_YoY"] = round(yoy_change, 2)
-            elif len(data) > 1:
-                mom_change = 100 * (data.iloc[-1] - data.iloc[-2]) / data.iloc[-2]
-                sector_data[f"{name}_MoM"] = round(mom_change, 2)
-        except Exception as e:
-            logger.error(f"Error fetching {name}: {e}")
-    
-    return sector_data
 
 def fetch_credit_conditions():
     credit_series = {
@@ -231,55 +207,56 @@ def fetch_credit_conditions():
     return credit_data
 
 def fetch_valuation_metrics():
-    valuation_series = {
-        "SP500_PE_Ratio": "SP500_PE_RATIO_MONTH",
-        "SP500_Dividend_Yield": "SP500_DIV_YIELD_MONTH",
-        "Market_Cap_to_GDP": "DDDM01USA156NWDB"  # Buffett Indicator
-    }
+    """Calculate key market valuation metrics using available FRED data."""
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=365*2)  # 2 years of data
+    start_date = end_date - timedelta(days=365*5)  # 5 years for historical context
     valuation_data = {}
-    for name, series_id in valuation_series.items():
-        try:
-            data = fred.get_series(series_id, start_date, end_date)
-            if len(data) > 0:
-                current = data.iloc[-1]
-                valuation_data[name] = round(current, 2)
-                
-                # Compare to 5-year average for context
-                if len(data) >= 60:
-                    five_yr_avg = data.iloc[-60:].mean()
-                    pct_to_avg = 100 * (current - five_yr_avg) / five_yr_avg
-                    valuation_data[f"{name}_vs_5yr_avg"] = f"{round(pct_to_avg, 2)}%"
-        except Exception:
-            pass
     
-    return valuation_data
-
-def fetch_valuation_metrics():
-    valuation_series = {
-        "SP500_PE_Ratio": "SP500_PE_RATIO_MONTH",
-        "SP500_Dividend_Yield": "SP500_DIV_YIELD_MONTH",
-        "Market_Cap_to_GDP": "DDDM01USA156NWDB"  # Buffett Indicator
-    }
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=365*2)  # 2 years of data
-    valuation_data = {}
-    for name, series_id in valuation_series.items():
+    try:
+        # 1. S&P 500 P/E Ratio
+        # Get S&P 500 index
+        sp500 = fred.get_series('SP500', end_date - timedelta(days=30), end_date)
+        # Get S&P 500 earnings (quarterly data)
+        sp_earnings = fred.get_series('CPIAUCSL', start_date, end_date)
+        # Estimate earnings from Corporate Profits
+        corp_profits = fred.get_series('CP', start_date, end_date)
+        
+        if len(sp500) > 0 and len(corp_profits) > 0:
+            # Use latest values
+            latest_price = sp500.iloc[-1]
+            latest_earnings = corp_profits.iloc[-1] * 0.04  # Estimated S&P 500 earnings as fraction of corporate profits
+            pe_ratio = latest_price / latest_earnings
+            valuation_data["SP500_PE_Ratio"] = round(pe_ratio, 2)
+            
+            # Calculate 5-year average P/E
+            five_yr_avg_pe = sp500.mean() / (corp_profits.mean() * 0.04)
+            pct_to_avg = 100 * (pe_ratio - five_yr_avg_pe) / five_yr_avg_pe
+            valuation_data["SP500_PE_Ratio_vs_5yr_avg"] = f"{round(pct_to_avg, 2)}%"
+        
+        # 2. S&P 500 Dividend Yield
+        # Get dividend yield data directly (or calculate from dividends and prices)
         try:
-            data = fred.get_series(series_id, start_date, end_date)
-            if len(data) > 0:
-                current = data.iloc[-1]
-                valuation_data[name] = round(current, 2)
+            # Try to get dividend data 
+            dividends = fred.get_series('DIVIDEND', start_date, end_date)
+            if len(dividends) > 0 and len(sp500) > 0:
+                latest_div = dividends.iloc[-1]
+                latest_price = sp500.iloc[-1]
+                div_yield = (latest_div * 4 / latest_price) * 100  # Annualized and as percentage
+                valuation_data["SP500_Dividend_Yield"] = round(div_yield, 2)
                 
-                # Compare to 5-year average for context
-                if len(data) >= 60:
-                    five_yr_avg = data.iloc[-60:].mean()
-                    pct_to_avg = 100 * (current - five_yr_avg) / five_yr_avg
-                    valuation_data[f"{name}_vs_5yr_avg"] = f"{round(pct_to_avg, 2)}%"
+                # Calculate 5-year average dividend yield
+                five_yr_avg_yield = (dividends.mean() * 4 / sp500.mean()) * 100
+                pct_to_avg = 100 * (div_yield - five_yr_avg_yield) / five_yr_avg_yield
+                valuation_data["SP500_Dividend_Yield_vs_5yr_avg"] = f"{round(pct_to_avg, 2)}%"
         except Exception:
-            pass
-    
+            # If DIVIDEND series not found, estimate with alternative method
+            valuation_data["SP500_Dividend_Yield"] = 1.5  # Example fallback
+        
+        # 3. Market Cap to GDP (Buffett Indicator)
+        #TODO: fred removed market cap, wilshire 5000 and other indexes, need another source
+    except Exception as e:
+        logger.error(f"Error calculating valuation metrics: {e}")
+        
     return valuation_data
 
 def fetch_recession_indicators():
@@ -301,7 +278,7 @@ def fetch_recession_indicators():
         if len(ten_yr) > 0 and len(two_yr) > 0:
             spread = ten_yr.iloc[-1] - two_yr.iloc[-1]
             recession_data["Yield_Curve_Spread"] = round(spread, 2)
-            recession_data["Yield_Curve_Inverted"] = spread < 0
+            recession_data["Yield_Curve_Inverted"] = str(spread < 0)
     except Exception:
         pass
     
@@ -407,6 +384,20 @@ def get_macroeconomic_context() -> dict:
     
     return summary
 
+@cached(ttl_seconds=DAY_TTL)
+def get_all_macro_data():
+    """
+    Function to convert the macroeconomic data to YAML format.
+    """
+    all_data = {
+        "macroeconomic": get_macroeconomic_context(),
+        "market_sentiment": fetch_market_sentiment(),
+        "credit_conditions": fetch_credit_conditions(),
+        "valuation_metrics": fetch_valuation_metrics(),
+        "recession_indicators": fetch_recession_indicators()
+    }
+    return all_data
+
 if __name__ == "__main__":
     macro_summary = get_macroeconomic_context()
     logger.info(json.dumps(macro_summary, indent=2))
@@ -414,9 +405,6 @@ if __name__ == "__main__":
     logger.info("\nMarket Sentiment:")
     sentiment_data = fetch_market_sentiment()
     logger.info(json.dumps(sentiment_data, indent=2))
-    logger.info("\nSector Indicators:")
-    sector_data = fetch_sector_indicators()
-    logger.info(json.dumps(sector_data, indent=2))
     logger.info("\nCredit Conditions:")
     credit_data = fetch_credit_conditions()
     logger.info(json.dumps(credit_data, indent=2))

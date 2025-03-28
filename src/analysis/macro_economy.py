@@ -1,12 +1,15 @@
 import os
+import sys
 from typing import List, Optional, Tuple
 from bs4 import BeautifulSoup
 from langchain.schema import Document
 import requests
 import yaml
 from datetime import datetime
-from analysis.macroeconomic import get_macroeconomic_context
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from analysis.macroeconomic import get_all_macro_data
 from ml_serving.ai_service import map_reduce_summarize
+from analysis.utils import convert_numpy_to_native
 from storage.cache import HOURS2_TTL, cached, DAY_TTL
 from logger import get_logger
 
@@ -171,7 +174,7 @@ if __name__ == "__main__":
 
 
 @cached(ttl_seconds=DAY_TTL)
-def make_yaml():
+def make_macro_yaml():
     """
     Generate a YAML file combining macroeconomic data and economic news summary.
     Saves the file to ./analysis_docs/yyyy/mm/dd/macro.yaml.
@@ -180,18 +183,13 @@ def make_yaml():
         str: YAML string representation of the combined data.
     """
     # Fetch macroeconomic data and news summary
-    macro_data = get_macroeconomic_context()
-    news_summary = summarize_economic_news()
-
-    # Combine data
-    combined_data = {
-        "macroeconomic": macro_data,
-        "economic_news": news_summary
-    }
-
+    macro_data = get_all_macro_data()
+    macro_data["economic_news"] = summarize_economic_news()
+    
+    native_data = convert_numpy_to_native(macro_data)
     # Convert to YAML
     yaml_string = yaml.dump(
-        combined_data,
+        native_data,
         default_flow_style=False,
         sort_keys=False,
         allow_unicode=True
@@ -216,4 +214,4 @@ def make_yaml():
     return yaml_string
 
 if __name__ == "__main__":
-    print(make_yaml())
+    logger.info(make_macro_yaml())

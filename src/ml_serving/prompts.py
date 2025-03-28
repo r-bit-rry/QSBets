@@ -192,40 +192,43 @@ Stock Data:
 
 CONSULT_PROMPT_V7 = PromptTemplate(
     input_variables=["loadedDocument"],
-    template="""Analyze this stock as an expert financial analyst. Identify key opportunities and risks that typical analysis might miss.
-    Be thorough in your assessment, with special focus on actionable entry/exit strategies.
-    Reason around the input data until you are confident in your conclusions and you can clearly state your confidence is above 8.
-    If you are not confident, please state that clearly, and in the reasoning state what information can make you more confident.
-    Provide a technical, data-driven investment thesis with the following structure:
+    template="""Analyze this stock as an expert financial analyst. Identify key opportunities and risks.
+    Be thorough, focusing on actionable entry/exit strategies adhering to the specified format.
+    Reason around the input data until you are confident (confidence >= 8). If not confident, state why.
+    Provide a technical, data-driven investment thesis.
 
+RETURN ONLY THE JSON response with no additional text, using this exact structure:
 {{
   "symbol": "TICKER",
-  "rating": [0-100 score with 100 being strongest buy and 0 a strong sell],
-  "confidence": [1-10 confidence in your rating],
-  "reasoning": [Concise summary of key factors driving your rating],
+  "rating": [0-100 score, 100=strongest buy, 0=strong sell],
+  "confidence": [1-10 confidence],
+  "reasoning": "[Concise summary of key factors driving rating]",
   "bullish_factors": [
-    "List 3-5 specific reasons supporting a bullish case, with quantitative values"
+    "List 3-5 specific bullish reasons with quantitative values"
   ],
   "bearish_factors": [
-    "List 2-4 specific risks or concerns, with quantitative values"
+    "List 2-4 specific risks/concerns with quantitative values"
   ],
-  "macro_impact": "How current macroeconomic conditions specifically affect this stock",
+  "macro_impact": "How current macroeconomic conditions affect this stock",
   "enter_strategy": {{
-    "entry_price": "Specific price levels with rationale",
-    "entry_timing": "Market conditions that would trigger entry",
-    "technical_indicators": "Key indicators to monitor with specific values"
+    "price": "[Target entry price level(s) or condition string, e.g., '10.50' or 'SMA20']",
+    "timing": "[Timing instruction string, e.g., 'Immediate' or 'On pullback']",
+    "conditions": [ 
+      {{ "indicator": "e.g., price", "operator": "e.g., >", "value": "e.g., sma50", "description": "Optional: Price > SMA50" }}
+    ]
   }},
   "exit_strategy": {{
-    "profit_target": "Primary and secondary price targets with percentage gains",
-    "stop_loss": "Specific price with percentage loss and rationale",
-    "time_horizon": "Expected holding period",
-    "exit_conditions": [
-      "List specific technical or fundamental conditions that would trigger exit"
+    "profit_target": {{ 
+        "primary": {{ "price": [numeric target price], "percentage": [optional string % gain] }},
+        "secondary": {{ "price": [optional numeric target price], "percentage": [optional string % gain] }}
+    }},
+    "stop_loss": {{ "price": [numeric stop loss price], "percentage": [optional string % loss] }},
+    "time_horizon": "[Expected holding period string, e.g., '2-4 weeks']",
+    "conditions": [
+      {{ "indicator": "e.g., price", "operator": "e.g., <", "value": "e.g., sma100", "description": "Optional: Close below SMA100" }}
     ]
   }}
 }}
-
-Return ONLY the JSON response with no additional text.
 
 Stock Data:
 {loadedDocument}
@@ -234,47 +237,38 @@ Stock Data:
 
 OWNERSHIP_PROMPT = PromptTemplate(
     input_variables=["loadedDocument", "purchase_price"],
-    template="""You are an elite portfolio manager with 25+ years experience specializing in position management and exit strategies.
-    The investor already owns this stock at ${purchase_price} per share. Your task is to provide a clear hold/sell recommendation.
-    Analyze the current position critically relative to the purchase price, weighing unrealized gains/losses against future potential.
-    Systematically evaluate technical indicators, fundamental metrics, and market sentiment to determine optimal position management.
-    
-    First, assess current price relative to purchase price.
-    Second, evaluate if the original investment thesis is still intact.
-    Third, determine if technical/fundamental indicators suggest further upside or increasing risk.
-    Fourth, consider macroeconomic conditions affecting this position.
-    
-    Reason around the input data until you are confident in your conclusions and you can clearly state your confidence is above 8.
-    If you are not confident, please state that clearly, and in the reasoning state what information can make you more confident.
-    Generate a comprehensive position recommendation with the following structure:
+    template="""You are an elite portfolio manager managing an existing position bought at ${purchase_price}. Provide a clear hold/sell recommendation.
+    Analyze the position critically relative to the purchase price and original thesis. Evaluate indicators, fundamentals, and sentiment.
+    Assess: 1. Current price vs purchase. 2. Thesis validity. 3. Indicator signals. 4. Macro impact.
+    Reason until confident (confidence >= 8). If not confident, state why.
+    Generate a comprehensive position recommendation.
 
+RETURN ONLY THE JSON response with no additional text, using this exact structure:
 {{
-  "symbol": "TICKER", 
+  "symbol": "TICKER",
   "purchase_price": {purchase_price},
-  "current_price": [current stock price],
+  "current_price": [current stock price from data],
   "unrealized_gain_loss_pct": [percentage gain/loss from purchase],
-  "rating": [0-100 score with 0 being strongest sell and 100 being strongest hold],
-  "confidence": [1-10 confidence in your rating],
-  "reasoning": [Concise summary of key factors driving your recommendation],
+  "rating": [0-100 score, 0=strongest sell, 100=strongest hold],
+  "confidence": [1-10 confidence],
+  "reasoning": "[Concise summary driving recommendation]",
   "hold_factors": [
-    "List 2-4 specific reasons supporting continued holding, with quantitative values"
+    "List 2-4 specific reasons supporting hold, with quantitative values"
   ],
   "risk_factors": [
-    "List 2-4 specific risks or concerns for continuing to hold, with quantitative values"
+    "List 2-4 specific risks for holding, with quantitative values"
   ],
-  "macro_impact": "How current macroeconomic conditions specifically affect this position",
+  "macro_impact": "How current macroeconomic conditions affect this position",
   "exit_strategy": {{
-    "stop_loss": "Updated stop loss price with percentage from purchase price",
-    "target_price": "Revised target price with percentage gain from purchase price",
-    "time_horizon": "Remaining recommended holding period",
-    "trailing_stop": "Consider implementing a trailing stop of X% if appropriate"
-  }},
-  "exit_conditions": [
-    "List specific technical or fundamental conditions that would trigger immediate exit"
-  ]
+    "stop_loss": {{ "price": [UPDATED numeric stop loss price], "percentage": [optional string % loss from current price] }},
+    "profit_target": {{ "primary": {{ "price": [REVISED numeric target price], "percentage": [optional string % gain from current price] }} }},
+    "time_horizon": "[Remaining recommended holding period string]",
+    "trailing_stop": "[Optional: Suggest trailing stop % string, e.g., '5%']",
+    "conditions": [
+      {{ "indicator": "e.g., price", "operator": "e.g., <", "value": "e.g., sma200", "description": "Optional: Close below key level" }}
+    ]
+  }}
 }}
-
-Return ONLY the JSON response with no additional text.
 
 Stock Data:
 {loadedDocument}

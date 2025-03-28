@@ -4,8 +4,8 @@ import json
 import os
 import time
 import yaml
-import numpy as np
 from logger import get_logger
+from analysis.utils import convert_numpy_to_native
 
 logger = get_logger(__name__)
 
@@ -291,7 +291,7 @@ class Stock:
         """Create YAML files with the same report data as make_json but in YAML format"""
         # Generate the report data
         report, timings, start_total = self._generate_report()
-        report = self._convert_numpy_to_native(report)
+        report = convert_numpy_to_native(report)
         # Save as YAML and print timing
         return self._save_report_and_print_timing(
             report, 
@@ -308,36 +308,6 @@ class Stock:
                 allow_unicode=True         # Support Unicode characters
             )
         )
-
-    def _convert_numpy_to_native(self, obj):
-        """Convert NumPy types and pandas timestamps to native Python types for better YAML serialization"""
-        # Handle pandas Timestamp objects
-        if hasattr(obj, "_repr_base") and "timestamp" in str(type(obj)).lower():
-            return obj.strftime("%Y-%m-%d")  # Convert to ISO format date string
-
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, dict):
-            # Handle timestamp keys by converting them to strings
-            result = {}
-            for key, value in obj.items():
-                # Convert timestamp keys to strings
-                if hasattr(key, "_repr_base") and "timestamp" in str(type(key)).lower():
-                    new_key = key.strftime("%Y-%m-%d")
-                else:
-                    new_key = key
-                result[new_key] = self._convert_numpy_to_native(value)
-            return result
-        elif isinstance(obj, list):
-            return [self._convert_numpy_to_native(item) for item in obj]
-        elif hasattr(obj, "item"):  # Handle numpy scalar objects
-            return obj.item()
-        else:
-            return obj
 
     def _clean_financial_metric(self, value):
         """Convert financial strings like "$2(m)" to numeric values"""

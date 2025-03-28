@@ -12,7 +12,7 @@ def interpret_rsi(rsi):
     if isinstance(rsi, list) and rsi:
         rsi = rsi[-1]  # Use the most recent RSI value
 
-    if rsi is None:
+    if rsi is None or not isinstance(rsi, (int, float)):
         return {"status": "unknown", "strength": 0, "description": "No RSI data available"}
     
     if rsi > 70:

@@ -741,17 +741,5 @@ def main():
 if __name__ == "__main__":
     load_dotenv(".env")
     symbol = "ASTS"
-    # main()
-    # sec_filings = fetch_sec_filings(symbol)
-    # insider_trading_info = fetch_insider_trading(symbol)
-    # institutional_holdings_info = fetch_institutional_holdings(symbol)
-    # print(institutional_holdings_info)
-    # print(insider_trading_info)
-    # short_interest_info = fetch_short_interest(symbol)
-    # print(short_interest_info)
-    # revenue_earnings_info = fetch_revenue_earnings(symbol)
-    # print(revenue_earnings_info)
-    # print(fetch_stock_press_releases(symbol))
-    # print(fetch_stock_news(symbol))
     df = correlate_stocks_with_news()
     print(df)

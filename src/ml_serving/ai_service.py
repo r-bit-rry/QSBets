@@ -17,6 +17,7 @@ from ml_serving.config import FIN_R1_ARGS
 from ml_serving.prompts import CONSULT_PROMPT_V7, OWNERSHIP_PROMPT, STOCK_CONSULT_SYSTEM_PROMPT, STOCK_SUMMARIZE_SYSTEM_PROMPT, SUMMARIZE_PROMPT_V3
 from ml_serving.utils import JsonOutputParser, SummaryResponse, dump_failed_text, extract_json_from_response, get_chat
 from logger import get_logger
+from analysis.macro_economy import make_yaml
 
 logger = get_logger("qsbets")
 
@@ -304,7 +305,9 @@ def consult(
     chain = chain.with_retry(
         stop_after_attempt=max_retries
     )
-    res = chain.invoke({"loadedDocument": document, "purchase_price": purchase_price})
+    macro_yaml = make_yaml()
+    combined_data = f"{macro_yaml}\n\n{document}"
+    res = chain.invoke({"loadedDocument": combined_data, "purchase_price": purchase_price})
     if "error" in res:
         raise Exception(f"Model server error: {res['error']}")
     if callback:

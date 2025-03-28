@@ -9,8 +9,6 @@ from logger import get_logger
 
 logger = get_logger(__name__)
 
-from analysis.economicnews import summarize_economic_news
-from analysis.macroeconomic import get_macroeconomic_context
 from ml_serving.ai_service import map_reduce_summarize_stock
 from collectors.social import fetch_stocks_sentiment, fetch_stocks_social
 from collectors.nasdaq import (
@@ -137,12 +135,6 @@ class Stock:
         report["technical_analysis"] = technical_analysis
         timings["technical_analysis"] = time.time() - t_start
 
-        # Macroeconomic indicators
-        t_start = time.time()
-        macroeconomic_context = get_macroeconomic_context()
-        report["macroeconomic_context"] = macroeconomic_context
-        timings["macroeconomic_context"] = time.time() - t_start
-
         # Revenue and Earnings - ensure numeric values
         t_start = time.time()
         revenue_data = fetch_revenue_earnings(self.symbol)
@@ -233,7 +225,6 @@ class Stock:
             report["summaries"] = summaries
         else:
             report["summaries"] = []
-        report["macroeconomic_news"] = summarize_economic_news()
         timings["summaries"] = time.time() - t_start
         return report, timings, start_total
 

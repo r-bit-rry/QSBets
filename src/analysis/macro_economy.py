@@ -1,17 +1,18 @@
 import os
-import sys
-import requests
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 from bs4 import BeautifulSoup
 from langchain.schema import Document
-
-from storage.cache import HOURS2_TTL, cached
+import requests
+import yaml
+from datetime import datetime
+from analysis.macroeconomic import get_macroeconomic_context
 from ml_serving.ai_service import map_reduce_summarize
+from storage.cache import HOURS2_TTL, cached, DAY_TTL
 from logger import get_logger
-logger = get_logger("economic_news")
 
+logger = get_logger(__name__)
 
-# @cached(1800)
+@cached(1800)
 def fetch_economic_news(url: str = "https://hotgrog.com/business/") -> Optional[str]:
     """
     Fetch the economic news webpage content.
@@ -167,3 +168,52 @@ if __name__ == "__main__":
     # Example usage
     summary = summarize_economic_news()
     logger.info(summary)
+
+
+@cached(ttl_seconds=DAY_TTL)
+def make_yaml():
+    """
+    Generate a YAML file combining macroeconomic data and economic news summary.
+    Saves the file to ./analysis_docs/yyyy/mm/dd/macro.yaml.
+
+    Returns:
+        str: YAML string representation of the combined data.
+    """
+    # Fetch macroeconomic data and news summary
+    macro_data = get_macroeconomic_context()
+    news_summary = summarize_economic_news()
+
+    # Combine data
+    combined_data = {
+        "macroeconomic": macro_data,
+        "economic_news": news_summary
+    }
+
+    # Convert to YAML
+    yaml_string = yaml.dump(
+        combined_data,
+        default_flow_style=False,
+        sort_keys=False,
+        allow_unicode=True
+    )
+
+    # Save YAML to file
+    today = datetime.now()
+    date_path = os.path.join(
+        "analysis_docs",
+        today.strftime("%Y"),
+        today.strftime("%m"),
+        today.strftime("%d")
+    )
+    os.makedirs(date_path, exist_ok=True)
+    file_path = os.path.join(date_path, "macro.yaml")
+
+    with open(file_path, "w", encoding="utf-8") as file:
+        file.write(yaml_string)
+
+    logger.info(f"Macro YAML saved to {file_path}")
+
+    return yaml_string
+
+if __name__ == "__main__":
+    print(make_yaml())

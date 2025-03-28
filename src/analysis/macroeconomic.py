@@ -409,22 +409,22 @@ def get_macroeconomic_context() -> dict:
 
 if __name__ == "__main__":
     macro_summary = get_macroeconomic_context()
-    print(json.dumps(macro_summary, indent=2))
+    logger.info(json.dumps(macro_summary, indent=2))
 
-    print("\nMarket Sentiment:")
+    logger.info("\nMarket Sentiment:")
     sentiment_data = fetch_market_sentiment()
-    print(json.dumps(sentiment_data, indent=2))
-    print("\nSector Indicators:")
+    logger.info(json.dumps(sentiment_data, indent=2))
+    logger.info("\nSector Indicators:")
     sector_data = fetch_sector_indicators()
-    print(json.dumps(sector_data, indent=2))
-    print("\nCredit Conditions:")
+    logger.info(json.dumps(sector_data, indent=2))
+    logger.info("\nCredit Conditions:")
     credit_data = fetch_credit_conditions()
-    print(json.dumps(credit_data, indent=2))
-    print("\nValuation Metrics:")
+    logger.info(json.dumps(credit_data, indent=2))
+    logger.info("\nValuation Metrics:")
     valuation_data = fetch_valuation_metrics()
-    print(json.dumps(valuation_data, indent=2))
-    print("\nRecession Indicators:")
+    logger.info(json.dumps(valuation_data, indent=2))
+    logger.info("\nRecession Indicators:")
     recession_data = fetch_recession_indicators()
-    print(json.dumps(recession_data, indent=2))
+    logger.info(json.dumps(recession_data, indent=2))
 
 

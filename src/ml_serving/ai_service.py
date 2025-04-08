@@ -256,7 +256,7 @@ def consult(
     metadata: Dict[str, Any] = None,
     callback: Callable = None,
     backend: str = "lmstudio",
-    model: str = "fin-r1-mlx",
+    model: str = "fino1-14b-mlx",
     max_retries: int = DEFAULT_MAX_RETRIES,
 ) -> Union[Dict[str, Any], None]:
     """

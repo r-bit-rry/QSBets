@@ -200,9 +200,9 @@ CONSULT_PROMPT_V7 = PromptTemplate(
 RETURN ONLY THE JSON response with no additional text, using this exact structure:
 {{
   "symbol": "TICKER",
-  "rating": [0-100 score, 100=strongest buy, 0=strong sell],
-  "confidence": [1-10 confidence],
-  "reasoning": "[Concise summary of key factors driving rating]",
+  "rating": 0-100 score where 0=strongest sell and 100=strongest buy,
+  "confidence": 1-10 confidence,
+  "reasoning": "Concise summary of key factors driving rating",
   "bullish_factors": [
     "List 3-5 specific bullish reasons with quantitative values"
   ],
@@ -247,11 +247,11 @@ RETURN ONLY THE JSON response with no additional text, using this exact structur
 {{
   "symbol": "TICKER",
   "purchase_price": {purchase_price},
-  "current_price": [current stock price from data],
+  "current_price": current stock price from data,
   "unrealized_gain_loss_pct": [percentage gain/loss from purchase],
-  "rating": [0-100 score, 0=strongest sell, 100=strongest hold],
-  "confidence": [1-10 confidence],
-  "reasoning": "[Concise summary driving recommendation]",
+  "rating": 0-100 score where 0=strongest sell and 100=strongest hold,
+  "confidence": 1-10 confidence,
+  "reasoning": "Concise summary driving recommendation",
   "hold_factors": [
     "List 2-4 specific reasons supporting hold, with quantitative values"
   ],

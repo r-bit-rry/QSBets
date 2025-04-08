@@ -167,12 +167,6 @@ def summarize_economic_news() -> str:
         logger.error(f"Failed to summarize economic news: {e}")
         return f"Error summarizing economic news: {str(e)}"
 
-if __name__ == "__main__":
-    # Example usage
-    summary = summarize_economic_news()
-    logger.info(summary)
-
-
 @cached(ttl_seconds=DAY_TTL)
 def make_macro_yaml():
     """
@@ -215,3 +209,6 @@ def make_macro_yaml():
 
 if __name__ == "__main__":
     logger.info(make_macro_yaml())
+    # Example usage
+    # summary = summarize_economic_news()
+    # logger.info(summary)

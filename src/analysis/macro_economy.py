@@ -155,7 +155,7 @@ def summarize_economic_news() -> str:
         summary = map_reduce_summarize(
             documents=[document],
             backend="lmstudio",
-            model="glm-4-9b-chat-abliterated",
+            model="glm-4-9b-chat-1m",
             system_prompt=system_prompt,
             map_template=map_template,
             reduce_template=reduce_template,

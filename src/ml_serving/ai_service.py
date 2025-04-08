@@ -29,7 +29,7 @@ def map_reduce_summarize(
     documents: List[Document],
     callback: Callable = StrOutputParser(),
     backend: str = "lmstudio",
-    model: str = "glm-4-9b-chat-abliterated",
+    model: str = "glm-4-9b-chat-1m",
     chunk_size: int = 10000,
     batch_size: int = 4,
     system_prompt: str = "",
@@ -147,7 +147,7 @@ def map_reduce_summarize_stock(
     stock: str,
     callback: Callable = StrOutputParser(),
     backend: str = "lmstudio",
-    model: str = "glm-4-9b-chat-abliterated",
+    model: str = "glm-4-9b-chat-1m",
     chunk_size: int = 16000,
     batch_size: int = 4,
 ) -> str:

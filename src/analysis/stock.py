@@ -45,13 +45,14 @@ class Stock:
         self.symbol = self.meta["symbol"]
 
     @staticmethod
-    def process_meta(nasdaq_data, symbol) -> dict:
+    def process_meta(nasdaq_data, symbol, trend_data=None) -> dict:
         """
         Extract metadata for a specific symbol from nasdaq_data DataFrame
 
         Args:
             nasdaq_data: DataFrame containing data for multiple stocks
             symbol: Stock ticker symbol to extract
+            trend_data: Optional trending data from StockTwits
 
         Returns:
             Dictionary with metadata for the requested symbol
@@ -61,11 +62,19 @@ class Stock:
             symbol_data = nasdaq_data[nasdaq_data["symbol"] == symbol]
             if symbol_data.empty:
                 logger.error(f"Symbol {symbol} not found in nasdaq data")
-                return {"symbol": symbol}
-            return symbol_data.iloc[0]
+                return {"symbol": symbol, "trend_data": trend_data} if trend_data else {"symbol": symbol}
+            
+            # Convert DataFrame row to dictionary
+            meta = symbol_data.iloc[0].to_dict()
+            
+            # Add trending data if available
+            if trend_data:
+                meta["trend_data"] = trend_data
+                
+            return meta
         except Exception as e:
             logger.error(f"Error processing metadata for {symbol}: {e}")
-            return {"symbol": symbol}
+            return {"symbol": symbol, "trend_data": trend_data} if trend_data else {"symbol": symbol}
 
     def _generate_report(self):
         """Generate the stock analysis report and return report data and timings"""
@@ -103,16 +112,21 @@ class Stock:
         report["meta"] = meta
         timings["metadata"] = time.time() - t_start
 
+        # Add trending data if available from request
+        if hasattr(self, 'meta') and 'trend_data' in self.meta:
+            report["trending"] = self.meta["trend_data"]
+            timings["trending"] = time.time() - t_start
+
         # Technical indicators analysis
         t_start = time.time()
-        technical_indicators = fetch_technical_indicators(self.symbol, period=150, days=1)
+        technical_indicators = fetch_technical_indicators(self.symbol, period=150, days=1, asset_class=meta["asset_type"])
         report["technical_indicators"] = technical_indicators
         timings["technical_indicators"] = time.time() - t_start
 
         t_start = time.time()
         # Get current price from most recent quote
-        report["historical_quotes"] = fetch_historical_quotes(self.symbol, 5)
-        current_price = float(list(report["historical_quotes"].values())[0]["close"])
+        report["historical_quotes"] = fetch_historical_quotes(self.symbol, 5, asset_class=meta["asset_type"])
+        current_price = float(meta["lastsale"].strip("$"))
         # Pre-analyze the technical indicators and add interpretations
         technical_analysis = [
             interpret_rsi(technical_indicators.get('rsi')).get("description"),
@@ -204,28 +218,28 @@ class Stock:
         timings["social_sentiment"] = time.time() - t_start
 
         # News with optimized summaries - eliminate redundant fields
-        t_start = time.time()
-        news = fetch_stock_news(self.symbol)
-        timings["news"] = time.time() - t_start
+        # t_start = time.time()
+        # news = fetch_stock_news(self.symbol)
+        # timings["news"] = time.time() - t_start
 
         # Press releases with optimized summaries
-        t_start = time.time()
-        press_releases = fetch_stock_press_releases(self.symbol)
-        timings["press_releases"] = time.time() - t_start
+        # t_start = time.time()
+        # press_releases = fetch_stock_press_releases(self.symbol)
+        # timings["press_releases"] = time.time() - t_start
         # Aggregate articles based on titles
-        articles = self.aggregate_articles(news + press_releases)
+        # articles = self.aggregate_articles(news + press_releases)
 
-        t_start = time.time()
-        # Summarize the articles
-        if articles:
-            # Use async_summarize to handle CPU-bound tasks
-            summaries = map_reduce_summarize_stock(
-                articles, f"{self.symbol} ({self.meta['name']})"
-            )
-            report["summaries"] = summaries
-        else:
-            report["summaries"] = []
-        timings["summaries"] = time.time() - t_start
+        # t_start = time.time()
+        # # Summarize the articles
+        # if articles:
+        #     # Use async_summarize to handle CPU-bound tasks
+        #     summaries = map_reduce_summarize_stock(
+        #         articles, f"{self.symbol} ({self.meta['name']})"
+        #     )
+        #     report["summaries"] = summaries
+        # else:
+        #     report["summaries"] = []
+        # timings["summaries"] = time.time() - t_start
         return report, timings, start_total
 
     def _save_report_and_print_timing(self, report, timings, start_total, format_type, file_extension, save_func):

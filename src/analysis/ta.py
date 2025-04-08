@@ -190,9 +190,9 @@ def safe_get_last_item(value):
     return value
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_technical_indicators(symbol, period=150, days=30):
+def fetch_technical_indicators(symbol, period=150, days=30, asset_class="stock"):
     # Fetch and parse the historical quotes JSON from NASDAQ.
-    historical_data = fetch_historical_quotes(symbol, period)
+    historical_data = fetch_historical_quotes(symbol, period, asset_class=asset_class)
     df = prepare_dataframe(historical_data, date_format="%m/%d/%Y")
     
     # Safety checks

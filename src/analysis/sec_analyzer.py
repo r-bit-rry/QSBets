@@ -4,7 +4,6 @@ from datetime import datetime
 from typing import List
 
 import trafilatura
-import chromadb
 from ollama import Client
 from logger import get_logger
 
@@ -20,7 +19,6 @@ class SECAnalyzer:
     def __init__(self, chunk_size: int = 512, persist_directory: str = "chroma_db_sec"):
         self.chunk_size = chunk_size
         # Create or connect to a persistent chromadb instance.
-        self.chroma_client = chromadb.PersistentClient(path=persist_directory)
 
     def process_filing(self, html_file: str, symbol: str, filing_type: str):
         """

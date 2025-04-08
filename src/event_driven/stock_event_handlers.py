@@ -14,6 +14,7 @@ from analysis.stock import Stock
 from ml_serving.ai_service import consult
 from collectors.nasdaq import fetch_nasdaq_data
 from collectors.social import get_sentiment_df
+from collectors.stocktweets import fetch_trending_stocks
 from event_driven.utils import _get_db_connection, _parse_conditions_db, _parse_profit_target_db, _parse_stop_loss_db
 from src.analysis.macro_economy import make_macro_yaml
 from telegram import listen_to_telegram, send_text_via_telegram, format_investment_message
@@ -36,6 +37,8 @@ class StockEventSystem:
         os.makedirs(self.analysis_dir, exist_ok=True)
         os.makedirs(self.results_dir, exist_ok=True)
         self.sentiment_stocks_limit = 10
+        self.trending_stocks_limit = 20  # Limit for trending stocks to analyze
+        self.last_trending_check = None
         self.quality_rating_threshold = 70 # Adjusted threshold for quality rating
         self.quality_confidence_threshold = 8 # Added threshold for confidence
         self.last_sentiment_check = None
@@ -170,7 +173,9 @@ class StockEventSystem:
                  self.logger.error(f"Error processing result from consult queue: {e}", exc_info=True)
 
             # Check for sentiment stocks periodically
+            # Process both sentiment and trending stocks
             self._process_sentiment_stocks()
+            self._process_trending_stocks()
             time.sleep(60)
 
     def _process_sentiment_stocks(self):
@@ -278,6 +283,41 @@ class StockEventSystem:
             except Exception as e:
                 self.logger.error(f"Error in consult loop submitting job: {str(e)}", exc_info=True)
                 time.sleep(5)
+
+    def _process_trending_stocks(self):
+        """Process trending stocks from StockTwits periodically."""
+        try:
+            current_time = datetime.now()
+            # Check trending stocks every 2 hours
+            if not self.last_trending_check or (current_time - self.last_trending_check).total_seconds() >= 7200:
+                self.last_trending_check = current_time
+                self.logger.info("Fetching trending stocks from StockTwits")
+                
+                trending_stocks = fetch_trending_stocks()
+                
+                # Sort by trending score and take top N
+                trending_stocks.sort(key=lambda x: x.get('trending_score', 0), reverse=True)
+                top_trending = trending_stocks[:self.trending_stocks_limit]
+                
+                for stock in top_trending:
+                    symbol = stock["symbol"]
+                    if pd.notna(symbol) and symbol:
+                        # Add to analysis queue with high priority
+                        stock_request_queue.put({
+                            "symbol": symbol,
+                            "request_id": f"trending_{datetime.now().timestamp()}",
+                            "requested_by": os.getenv("TELEGRAM_CHAT_ID"),
+                            "trend_data": {  # Include trending data for analysis
+                                "trending_score": stock.get("trending_score"),
+                                "trend_rank": stock.get("trend_rank"),
+                                "watchlist_count": stock.get("watchlist_count"),
+                                "trend_summary": stock.get("trend_summary")
+                            }
+                        })
+                        self.logger.info(f"Queued trending stock for analysis: {symbol} (Score: {stock.get('trending_score')})")
+                
+        except Exception as e:
+            self.logger.error(f"Error processing trending stocks: {str(e)}", exc_info=True)
 
 
 stock_system = StockEventSystem()

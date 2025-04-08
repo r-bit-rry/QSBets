@@ -162,7 +162,7 @@ def fetch_stock_news(symbol: str) -> list[str]:
     Keeps only news from the last week.
     Retrieves the page content from the URL and stores it in the 'content' field.
     """
-    news_url = f"https://www.nasdaq.com/api/news/topic/articlebysymbol?q={symbol}|STOCKS&offset=0&limit=10&fallback=true"
+    news_url = f"https://www.nasdaq.com/api/news/topic/articlebysymbol?q={symbol}|STOCKS&offset=0&limit=5&fallback=true"
     json_data = fetch_nasdaq_api(news_url)
     data = json_data.get("data", {})
     if data is None:
@@ -292,7 +292,7 @@ def fetch_institutional_holdings(symbol: str) -> str:
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
+def fetch_historical_quotes(symbol: str, period: int = 5, asset_class="stock") -> dict:
     """
     Fetches historical prices for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/quote/{symbol}/historical?assetclass=stocks
@@ -314,10 +314,10 @@ def fetch_historical_quotes(symbol: str, period: int = 5) -> dict:
     start_date = end_date - timedelta(
         days=period
     )  # Request more data than needed to ensure we have enough trading days
-
+    asset_class = "stocks" if asset_class == "stock" else "etf"
     historical_url = (
         f"https://api.nasdaq.com/api/quote/{symbol}/historical?"
-        f"assetclass=stocks&fromdate={start_date.strftime('%Y-%m-%d')}&"
+        f"assetclass={asset_class}&fromdate={start_date.strftime('%Y-%m-%d')}&"
         f"limit={period}&todate={end_date.strftime('%Y-%m-%d')}"
     )
 
@@ -570,17 +570,60 @@ def fetch_nasdaq_press_release(limit: int = 1000) -> pd.DataFrame:
 @cached(ttl_seconds=1800)
 def fetch_nasdaq_data() -> pd.DataFrame:
     """
-    Fetch Nasdaq stock data from cache if available and not expired;
-    otherwise, download new data and save it to a local cache file.
-    Refreshes the cookie before reaching the Nasdaq API.
+    Fetch both Nasdaq stock and ETF data and combine them into a single DataFrame.
+    
+    Returns:
+        DataFrame containing both stock and ETF data with standardized columns
     """
-    nasdaq_stock_api = "https://api.nasdaq.com/api/screener/stocks?tableonly=false&download=true"
-    json_data = fetch_nasdaq_api(nasdaq_stock_api)
-    rows = json_data.get("data", {}).get("rows", [])
-    df = pd.DataFrame(rows)
-    # Convert marketCap to numeric (handle commas or dollar signs if needed)
-    df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce")
-    return df
+    # Fetch stocks data
+    stocks_api = "https://api.nasdaq.com/api/screener/stocks?tableonly=false&download=true"
+    stocks_json_data = fetch_nasdaq_api(stocks_api)
+    stocks_rows = stocks_json_data.get("data", {}).get("rows", [])
+    stocks_df = pd.DataFrame(stocks_rows)
+    
+    if not stocks_df.empty:
+        stocks_df["asset_type"] = "stock"
+    
+    # Fetch ETFs data
+    etfs_api = "https://api.nasdaq.com/api/screener/etf?tableonly=false&download=true"
+    etfs_json_data = fetch_nasdaq_api(etfs_api)
+    etfs_rows = etfs_json_data.get("data", {}).get("data", {}).get("rows", [])
+    etfs_df = pd.DataFrame(etfs_rows)
+    
+    if not etfs_df.empty:
+        # Standardize ETF field names to match stocks schema
+        field_mapping = {
+            "companyName": "name",
+            "lastSalePrice": "lastsale",
+            "percentageChange": "pctchange"
+        }
+        
+        # Rename columns based on mapping
+        for old_col, new_col in field_mapping.items():
+            if old_col in etfs_df.columns:
+                etfs_df.rename(columns={old_col: new_col}, inplace=True)
+        
+        # Drop unnecessary ETF columns
+        columns_to_drop = ["deltaIndicator", "oneYearPercentage"]
+        etfs_df = etfs_df.drop(columns=[col for col in columns_to_drop if col in etfs_df.columns])
+        
+        # Add missing stock fields as empty strings for ETFs
+        missing_fields = ["marketCap", "country", "ipoyear", "volume", "sector", "industry", "url"]
+        for field in missing_fields:
+            if field not in etfs_df.columns:
+                etfs_df[field] = ""
+        
+        # Mark as ETF
+        etfs_df["asset_type"] = "etf"
+    
+    # Combine the two dataframes
+    combined_df = pd.concat([stocks_df, etfs_df], ignore_index=True)
+    
+    # Convert marketCap to numeric for stocks (ignore ETFs with empty marketCap)
+    if "marketCap" in combined_df.columns:
+        combined_df["marketCap"] = pd.to_numeric(combined_df["marketCap"], errors="coerce")
+    
+    return combined_df
 
 @cached(ttl_seconds=DAY_TTL)
 def fetch_nasdaq_earning_calls() -> pd.DataFrame:

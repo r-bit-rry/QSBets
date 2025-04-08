@@ -12,7 +12,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
 
 # System prompt for stock analysis
 STOCK_SYSTEM_PROMPT = "You are an expert stock analyst. Always provide your analysis in the requested JSON format."
-chat = get_chat(backend="lmstudio", model="glm-4-9b-chat-abliterated")
+chat = get_chat(backend="lmstudio", model="glm-4-9b-chat-1m")
 
 logger = get_logger(__name__)
 

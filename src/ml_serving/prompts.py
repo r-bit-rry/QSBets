@@ -192,9 +192,10 @@ Stock Data:
 
 CONSULT_PROMPT_V7 = PromptTemplate(
     input_variables=["loadedDocument"],
-    template="""Analyze this stock as an expert financial analyst. Identify key opportunities and risks.
+    template="""Please answer the given financial question based on the context.
+    Analyze this stock as an expert financial analyst. Identify key opportunities and risks.
     Be thorough, focusing on actionable entry/exit strategies adhering to the specified format.
-    Reason around the input data until you are confident (confidence >= 8). If not confident, state why.
+    Reason around the input data until you have a confidence above 8. If you can't get confidence above 8,state why you are not confident.
     Provide a technical, data-driven investment thesis.
 
 RETURN ONLY THE JSON response with no additional text, using this exact structure:

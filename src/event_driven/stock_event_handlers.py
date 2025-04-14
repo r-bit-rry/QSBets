@@ -274,6 +274,7 @@ class StockEventSystem:
                     target=lambda: consult(
                         data=combined_data,
                         metadata=metadata, # Pass metadata to consult
+                        # TODO: fix error where wrong metadata is passed to callback
                         callback=lambda consult_res: on_consult_complete(consult_res, metadata) # Pass metadata to callback context
                     ),
                     daemon=True

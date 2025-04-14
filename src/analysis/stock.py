@@ -9,7 +9,6 @@ from analysis.utils import convert_numpy_to_native
 
 logger = get_logger(__name__)
 
-from ml_serving.ai_service import map_reduce_summarize_stock
 from collectors.social import fetch_stocks_sentiment, fetch_stocks_social
 from collectors.nasdaq import (
     fetch_historical_quotes,

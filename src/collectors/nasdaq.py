@@ -49,14 +49,14 @@ def safe_parse_date(date_str: str, fmt: str) -> (datetime | None):
 def get_full_url(url: str) -> str:
     return "https://www.nasdaq.com" + url if url.startswith("/") else url
 
-def safe_retrieve_page(url: str, format: str = "txt") -> str:
+def safe_retrieve_page(url: str, format: str = "txt") -> str | None:
     try:
         return retrieve_nasdaq_page(url, format)
     except Exception as e:
         logger.error(f"[safe_retrieve_page] Error retrieving {url}: {e}")
         return ""
 
-def clean_key_from_json(json_data: dict, key: str) -> str:
+def clean_key_from_json(json_data: dict, key: str) -> list:
     return [
         {k: v for k, v in json_data.items() if k != key}
         if isinstance(datum, dict) else datum
@@ -64,7 +64,7 @@ def clean_key_from_json(json_data: dict, key: str) -> str:
     ]
 
 @cached(ttl_seconds=1800)
-def retrieve_nasdaq_page(url: str, format: str = "txt") -> str:
+def retrieve_nasdaq_page(url: str, format: str = "txt") -> str | None:
     """
     Retrieve the content of a web page using trafilatura with caching.
     """
@@ -190,7 +190,7 @@ def fetch_stock_news(symbol: str) -> list[str]:
     return recent_news
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_revenue_earnings(symbol: str) -> str:
+def fetch_revenue_earnings(symbol: str) -> list:
     """
     Fetches revenue and earnings data for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/company/ASTS/revenue?limit=1
@@ -218,11 +218,19 @@ def fetch_revenue_earnings(symbol: str) -> str:
     transposed_data = []
     try:
         for i in range(0, len(rows), 4):
+            def safe_convert_value(value):
+                if not value or value == "N/A":
+                    return None
+                try:
+                    return value.replace("$", "").replace(",", "")
+                except (ValueError, AttributeError):
+                    return None
+                    
             quarter_data = {
                 "quarter": rows[i]["value1"],
-                "revenue": rows[i + 1]["value2"],
-                "eps": rows[i + 2]["value2"],
-                "dividends": rows[i + 3]["value2"],
+                "revenue": safe_convert_value(rows[i + 1]["value2"]),
+                "eps": safe_convert_value(rows[i + 2]["value2"]),
+                "dividends": safe_convert_value(rows[i + 3]["value2"]),
             }
             transposed_data.append(quarter_data)
     except Exception as e:
@@ -236,7 +244,7 @@ def fetch_revenue_earnings(symbol: str) -> str:
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_short_interest(symbol: str) -> str:
+def fetch_short_interest(symbol: str) -> list:
     """
     Fetches short interest data for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/quote/ASTS/short-interest?assetClass=stocks
@@ -255,7 +263,7 @@ def fetch_short_interest(symbol: str) -> str:
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_institutional_holdings(symbol: str) -> str:
+def fetch_institutional_holdings(symbol: str) -> dict:
     """
     Fetches institutional holdings data for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/company/ASTS/institutional-holdings?limit=10&type=TOTAL&sortColumn=marketValue
@@ -300,11 +308,11 @@ def fetch_historical_quotes(symbol: str, period: int = 5, asset_class="stock") -
     Returns a dict containing the trading data with numeric values (not string with $ and commas):
     {
         "MM/DD/YYYY": {
-            "close": 123.45,  # float
-            "volume": 1234567,  # int
-            "open": 123.45,    # float
-            "high": 124.56,    # float
-            "low": 122.34      # float
+            "close": 123.45,  # float or None if N/A
+            "volume": 1234567,  # int or None if N/A
+            "open": 123.45,    # float or None if N/A
+            "high": 124.56,    # float or None if N/A
+            "low": 122.34      # float or None if N/A
         },
         ...
     }
@@ -332,28 +340,31 @@ def fetch_historical_quotes(symbol: str, period: int = 5, asset_class="stock") -
 
     prices_dict = {}
     for row in trades_data:
-        # Clean and convert price values (remove $ and commas)
-        close_price = (
-            float(row["close"].replace("$", "").replace(",", ""))
-            if row["close"]
-            else None
-        )
-        open_price = (
-            float(row["open"].replace("$", "").replace(",", ""))
-            if row["open"]
-            else None
-        )
-        high_price = (
-            float(row["high"].replace("$", "").replace(",", ""))
-            if row["high"]
-            else None
-        )
-        low_price = (
-            float(row["low"].replace("$", "").replace(",", "")) if row["low"] else None
-        )
+        # Helper functions to safely convert values
+        def safe_convert_price(value):
+            if not value or value == "N/A":
+                return None
+            try:
+                return float(value.replace("$", "").replace(",", ""))
+            except (ValueError, AttributeError):
+                return None
 
-        # Clean and convert volume (remove commas)
-        volume = int(row["volume"].replace(",", "")) if row["volume"] else None
+        def safe_convert_volume(value):
+            if not value or value == "N/A":
+                return None
+            try:
+                return int(value.replace(",", ""))
+            except (ValueError, AttributeError):
+                return None
+
+        # Clean and convert price values
+        close_price = safe_convert_price(row.get("close"))
+        open_price = safe_convert_price(row.get("open"))
+        high_price = safe_convert_price(row.get("high"))
+        low_price = safe_convert_price(row.get("low"))
+
+        # Clean and convert volume
+        volume = safe_convert_volume(row.get("volume"))
 
         prices_dict[row["date"]] = {
             "close": close_price,
@@ -367,7 +378,7 @@ def fetch_historical_quotes(symbol: str, period: int = 5, asset_class="stock") -
 
 
 @cached(ttl_seconds=DAY_TTL)
-def fetch_insider_trading(symbol: str) -> str:
+def fetch_insider_trading(symbol: str) -> dict:
     """
     Fetches insider trading data for the given stock symbol from the Nasdaq API.
     https://api.nasdaq.com/api/company/ASTS/insider-trades?limit=10&type=all&sortColumn=lastDate&sortOrder=DESC
@@ -412,7 +423,7 @@ def fetch_description(symbol: str) -> str:
 
 # Deprecated in favor of edgartools
 @cached(ttl_seconds=DAY_TTL)
-def fetch_sec_filings(symbol: str) -> str:
+def fetch_sec_filings(symbol: str) -> list:
     """
     Fetches SEC filings for the given stock symbol from the Nasdaq API.
     Retrieves the latest 10-K and 10-Q filings and other recent filings from the last week.

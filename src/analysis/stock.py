@@ -116,11 +116,16 @@ class Stock:
             report["trending"] = self.meta["trend_data"]
             timings["trending"] = time.time() - t_start
 
-        # Technical indicators analysis
+        # Technical indicators analysis - only if asset_type is available
         t_start = time.time()
-        technical_indicators = fetch_technical_indicators(self.symbol, period=150, days=1, asset_class=meta["asset_type"])
-        report["technical_indicators"] = technical_indicators
-        timings["technical_indicators"] = time.time() - t_start
+        if "asset_type" in meta:
+            technical_indicators = fetch_technical_indicators(self.symbol, period=150, days=1, asset_class=meta["asset_type"])
+            report["technical_indicators"] = technical_indicators
+            timings["technical_indicators"] = time.time() - t_start
+        else:
+            logger.warning(f"Skipping technical indicators for {self.symbol} - asset_type not found in meta data")
+            report["technical_indicators"] = {}
+            timings["technical_indicators"] = time.time() - t_start
 
         t_start = time.time()
         # Get current price from most recent quote

@@ -209,15 +209,25 @@ class StockEventSystem:
                 self.logger.info(f"Processing analysis for {symbol}")
                 nasdaq_data = fetch_nasdaq_data()
                 meta = Stock.process_meta(nasdaq_data, symbol)
+                
+                # Skip if meta is missing critical data
+                if len(meta.keys()) <= 1:  # Only has 'symbol' key
+                    self.logger.warning(f"Skipping analysis for {symbol} - insufficient metadata")
+                    continue
+                
                 stock_obj = Stock(nasdaq_data=meta)
-                file_path = stock_obj.make_yaml()
-                analysis_result_queue.put({
-                    "symbol": symbol,
-                    "file_path": file_path,
-                    "request_id": request.get("request_id"),
-                    "requested_by": request.get("requested_by"),
-                    "purchase_price": request.get("purchase_price")
-                })
+                try:
+                    file_path = stock_obj.make_yaml()
+                    analysis_result_queue.put({
+                        "symbol": symbol,
+                        "file_path": file_path,
+                        "request_id": request.get("request_id"),
+                        "requested_by": request.get("requested_by"),
+                        "purchase_price": request.get("purchase_price")
+                    })
+                except KeyError as e:
+                    self.logger.error(f"Error processing {symbol}: missing required field - {str(e)}")
+                    continue
                 self.logger.info(f"Analysis for {symbol} completed and queued for consultation")
             except Empty:
                 continue

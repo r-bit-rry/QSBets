@@ -8,6 +8,8 @@ from datetime import datetime
 from typing import Any, Dict
 from queue import Queue, Empty
 import pandas as pd
+from copy import deepcopy
+
 
 from event_driven.event_bus import EventBus, EventType
 from analysis.stock import Stock
@@ -280,12 +282,18 @@ class StockEventSystem:
                 with open(file_path, 'r') as file:
                     document = file.read()
                 combined_data = f"{macroeconomic_data}\n\n{document}"
+                # Create an isolated copy of metadata for this thread
+                thread_metadata = deepcopy(metadata)
+                
+                def thread_callback(consult_res):
+                    # Each callback gets its own copy of metadata
+                    on_consult_complete(consult_res, thread_metadata)
+                
                 threading.Thread(
                     target=lambda: consult(
                         data=combined_data,
-                        metadata=metadata, # Pass metadata to consult
-                        # TODO: fix error where wrong metadata is passed to callback
-                        callback=lambda consult_res: on_consult_complete(consult_res, metadata) # Pass metadata to callback context
+                        metadata=thread_metadata,
+                        callback=thread_callback
                     ),
                     daemon=True
                 ).start()

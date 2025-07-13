@@ -63,19 +63,19 @@ def main():
     """Run the stock analysis system"""
     # Parse command line arguments
     args = parse_args()
-    
+
     # Load environment variables
     env_path = os.path.join(os.getcwd(), args.env)
     if not os.path.exists(env_path):
         # Try relative path if not found
         env_path = args.env
-    
+
     load_dotenv(env_path)
-    
+
     # Set up signal handlers for graceful shutdown
     signal.signal(signal.SIGINT, handle_shutdown)
     signal.signal(signal.SIGTERM, handle_shutdown)
-    
+
     # If running as daemon, detach from terminal
     if args.daemon and os.name != 'nt':  # Not supported on Windows
         try:
@@ -84,37 +84,38 @@ def main():
                 # Exit parent process
                 sys.exit(0)
         except OSError as e:
+            logger = get_logger("main")
             logger.error(f"Fork failed: {e}")
             sys.exit(1)
-        
+
         # Detach from terminal
         os.setsid()
         os.umask(0)
-        
+
         # Close all open file descriptors
         for fd in range(0, 1024):
             try:
                 os.close(fd)
             except OSError:
                 pass
-    
+
     # Initialize event bus
     event_bus = EventBus()
     event_bus.start()
     event_bus.start_background_loop()
-    
+
     logger = get_logger("main")
     logger.info("Initializing stock analysis system...")
     init_stock_system()
-    
+
     # Set the maximum number of top sentiment stocks to analyze
     if hasattr(stock_system, 'sentiment_stocks_limit'):
         stock_system.sentiment_stocks_limit = args.top
-        
+
     # Set the rating threshold for high-quality recommendations
     if hasattr(stock_system, 'quality_rating_threshold'):
         stock_system.quality_rating_threshold = args.threshold
-    
+
     # If a specific symbol was provided, request analysis immediately
     if args.analyze:
         symbols = args.analyze.upper().split(',')
@@ -126,13 +127,13 @@ def main():
                     "symbol": symbol,
                     "request_id": f"cmdline_{time.time()}",
                 })
-    
+
     logger.info("System running with:")
     logger.info(f"- Top {args.top} sentiment stocks analyzed periodically")
     logger.info(f"- Rating threshold for recommendations: {args.threshold}")
     logger.info("Results stored in results/results_YYYY-MM-DD.jsonl")
     logger.info("Press Ctrl+C to exit.")
-    
+
     # Keep main thread alive
     try:
         while True:

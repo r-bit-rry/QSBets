@@ -1,753 +1,731 @@
-"""
-Technical analysis interpretation module that converts raw indicators to insights.
-This reduces the LLM's workload by pre-analyzing technical data.
+"""Technical Analysis Interpretation Module
+
+This module provides comprehensive analysis and interpretation of technical indicators,
+including candlestick patterns, structured for efficient LLM comprehension and decision making.
 """
 
+import os
+from typing import Dict, List, Optional, Union, Any, Tuple, cast
+from dataclasses import dataclass
+from datetime import datetime
 from logger import get_logger
 
 logger = get_logger(__name__)
 
-def interpret_rsi(rsi):
-    """Interpret RSI value and return standardized assessment"""
-    if isinstance(rsi, list) and rsi:
-        rsi = rsi[-1]  # Use the most recent RSI value
+# Configurable minimum history days
+MIN_HISTORY_DAYS = int(os.getenv('MIN_HISTORY_DAYS', '150'))
 
-    if rsi is None or not isinstance(rsi, (int, float)):
+@dataclass
+class IndicatorSummary:
+    """Structured summary of a single technical indicator"""
+    name: str
+    value: Union[float, Dict[str, Any]]
+    interpretation: str
+    signal_type: str  # "bullish", "bearish", "neutral" 
+    signal_strength: int  # 0-3 (0=weak, 3=strong)
+    confidence: float  # 0-1
+
+@dataclass
+class ComprehensiveSummary:
+    """Complete technical analysis summary"""
+    price_action: Dict[str, float]
+    trend_indicators: List[IndicatorSummary]
+    momentum_indicators: List[IndicatorSummary]
+    volume_analysis: IndicatorSummary
+    volatility_metrics: IndicatorSummary
+    support_resistance: Dict[str, Any]  # Updated to include pattern confluence
+    candlestick_patterns: Dict[str, Any]  # New field for candlestick patterns
+    overall_signal: str
+    signal_strength: int
+    key_levels: Dict[str, Optional[float]]
+    risk_metrics: Dict[str, Union[float, str]]
+    ma_crosses: Dict[str, str]  # New field for MA crossovers
+
+def get_candlestick_patterns(summary: ComprehensiveSummary) -> Dict[str, Any]:
+    """Extract valid candlestick patterns from technical summary"""
+    patterns = {}
+    try:
+        # First check if attribute exists and is a dict
+        if not hasattr(summary, 'candlestick_patterns'):
+            return patterns
+
+        # Safely get the patterns dictionary
+        candlestick_patterns = getattr(summary, 'candlestick_patterns', {})
+        if not isinstance(candlestick_patterns, dict):
+            return patterns
+
+        # Use dict.items() safely with additional checks
+        for key in ('engulfing', 'doji', 'hammer', 'star', 'harami'):
+            try:
+                pattern = candlestick_patterns.get(key)
+                if isinstance(pattern, dict) and pattern.get('signal') in ['bullish', 'bearish']:
+                    patterns[key] = pattern
+            except (AttributeError, TypeError):
+                continue
+    except (AttributeError, TypeError) as e:
+        logger.debug(f"Error processing candlestick patterns: {e}")
+        
+    return patterns
+
+def validate_historical_data(data: Dict[str, Any]) -> Tuple[bool, Dict[str, bool]]:
+    """Validate historical data and return availability for different indicators
+    
+    Returns:
+        Tuple containing:
+        - bool: True if enough data for core indicators (20-day lookback)
+        - Dict[str, bool]: Indicator availability map
+    """
+    quotes = data.get('historical_quotes', {})
+    quote_count = len(quotes)
+    
+    # Define minimum days needed for each indicator
+    requirements = {
+        'sma_20': 20,
+        'sma_50': 50,
+        'sma_100': 100,
+        'macd': 26,  # MACD default is 12,26,9
+        'rsi': 14,
+        'bollinger': 20,
+        'adx': 14,
+        'stoch': 14,
+        'volume_ma': 20
+    }
+    
+    # Check which indicators can be calculated
+    availability = {
+        name: quote_count >= days
+        for name, days in requirements.items()
+    }
+    
+    # Log availability
+    if quote_count < MIN_HISTORY_DAYS:
+        available = [name for name, can_use in availability.items() if can_use]
+        unavailable = [name for name, can_use in availability.items() if not can_use]
+        logger.warning(
+            f"Limited historical data: {quote_count} days. "
+            f"Available indicators: {', '.join(available)}. "
+            f"Unavailable: {', '.join(unavailable)}"
+        )
+    
+    # Return True if we have at least enough data for core indicators (20-day)
+    return quote_count >= 20, availability
+
+def safe_float(value: Any, default: float = 0.0) -> float:
+    """Safely convert a value to float"""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return default
+
+def interpret_rsi(rsi: Optional[float]) -> Dict[str, Any]:
+    """Interpret RSI value"""
+    rsi_value = safe_float(rsi)
+    if rsi is None or rsi_value == 0:
         return {"status": "unknown", "strength": 0, "description": "No RSI data available"}
     
-    if rsi > 70:
-        return {"status": "overbought", "strength": 2, "description": f"RSI at {rsi:.2f} indicates overbought conditions"}
-    elif rsi < 30:
-        return {"status": "oversold", "strength": 2, "description": f"RSI at {rsi:.2f} indicates oversold conditions"}
-    elif rsi > 60:
-        return {"status": "bullish", "strength": 1, "description": f"RSI at {rsi:.2f} shows bullish momentum"}
-    elif rsi < 40:
-        return {"status": "bearish", "strength": 1, "description": f"RSI at {rsi:.2f} shows bearish momentum"}
+    if rsi_value > 70:
+        return {"status": "overbought", "strength": 2, "description": f"RSI at {rsi_value:.2f} indicates overbought conditions"}
+    elif rsi_value < 30:
+        return {"status": "oversold", "strength": 2, "description": f"RSI at {rsi_value:.2f} indicates oversold conditions"}
+    elif rsi_value > 60:
+        return {"status": "bullish", "strength": 1, "description": f"RSI at {rsi_value:.2f} shows bullish momentum"}
+    elif rsi_value < 40:
+        return {"status": "bearish", "strength": 1, "description": f"RSI at {rsi_value:.2f} shows bearish momentum"}
     else:
-        return {"status": "neutral", "strength": 0, "description": f"RSI at {rsi:.2f} is neutral"}
+        return {"status": "neutral", "strength": 0, "description": f"RSI at {rsi_value:.2f} is neutral"}
 
-def interpret_macd(macd_data):
-    """Interpret MACD values and return standardized assessment"""
-    if isinstance(macd_data, list) and macd_data:
-        macd_data = macd_data[-1]  # Use the most recent MACD values
-    
-    if not macd_data or None in (macd_data.get('macd'), macd_data.get('signal')):
+def interpret_macd(macd_data: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """Interpret MACD values"""
+    if not macd_data:
         return {"status": "unknown", "strength": 0, "description": "No MACD data available"}
     
-    macd_value = macd_data.get('macd')
-    signal = macd_data.get('signal')
-    hist = macd_data.get('hist')
+    macd_value = safe_float(macd_data.get('macd'))
+    signal = safe_float(macd_data.get('signal'))
+    hist = safe_float(macd_data.get('hist'))
+    hist_prev = safe_float(macd_data.get('hist_prev'))
     
     if macd_value > signal and hist > 0:
-        if hist > macd_data.get('hist_prev', 0):  # Requires historical data
+        if hist > hist_prev:
             return {"status": "bullish", "strength": 2, "description": f"MACD ({macd_value:.2f}) above signal line with increasing histogram"}
         return {"status": "bullish", "strength": 1, "description": f"MACD ({macd_value:.2f}) above signal line"}
     elif macd_value < signal and hist < 0:
-        if hist < macd_data.get('hist_prev', 0):  # Requires historical data
+        if hist < hist_prev:
             return {"status": "bearish", "strength": 2, "description": f"MACD ({macd_value:.2f}) below signal line with decreasing histogram"}
         return {"status": "bearish", "strength": 1, "description": f"MACD ({macd_value:.2f}) below signal line"}
-    elif macd_value > signal and macd_value > 0:
-        return {"status": "bullish", "strength": 1, "description": f"MACD ({macd_value:.2f}) crossing above signal line"}
-    elif macd_value < signal and macd_value < 0:
-        return {"status": "bearish", "strength": 1, "description": f"MACD ({macd_value:.2f}) crossing below signal line"}
     else:
         return {"status": "neutral", "strength": 0, "description": f"MACD ({macd_value:.2f}) showing mixed signals"}
 
-def interpret_moving_averages(price, sma_20, sma_50, sma_100):
-    """Analyze price relationship to multiple moving averages"""
-    if isinstance(sma_20, list) and sma_20:
-        sma_20 = sma_20[-1]
-    if isinstance(sma_50, list) and sma_50:
-        sma_50 = sma_50[-1]
-    if isinstance(sma_100, list) and sma_100:
-        sma_100 = sma_100[-1]
+def interpret_moving_averages(price: float, sma_20: Optional[float], sma_50: Optional[float], sma_100: Optional[float]) -> List[Dict[str, Any]]:
+    """Analyze moving averages"""
     results = []
     
-    # Check price relative to moving averages
-    if price > sma_20:
-        results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA20 (${sma_20:.2f})"})
-    else:
-        results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA20 (${sma_20:.2f})"})
+    sma_20_val = safe_float(sma_20)
+    sma_50_val = safe_float(sma_50)
+    sma_100_val = safe_float(sma_100)
+    
+    if sma_20_val > 0:
+        if price > sma_20_val:
+            results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA20 (${sma_20_val:.2f})"})
+        else:
+            results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA20 (${sma_20_val:.2f})"})
         
-    if price > sma_50:
-        results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA50 (${sma_50:.2f})"})
-    else:
-        results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA50 (${sma_50:.2f})"})
+    if sma_50_val > 0:
+        if price > sma_50_val:
+            results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA50 (${sma_50_val:.2f})"})
+        else:
+            results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA50 (${sma_50_val:.2f})"})
         
-    if price > sma_100:
-        results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA100 (${sma_100:.2f})"})
-    else:
-        results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA100 (${sma_100:.2f})"})
+    if sma_100_val > 0:
+        if price > sma_100_val:
+            results.append({"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above SMA100 (${sma_100_val:.2f})"})
+        else:
+            results.append({"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below SMA100 (${sma_100_val:.2f})"})
     
     # Check moving average alignment
-    if sma_20 > sma_50 > sma_100:
-        results.append({"status": "bullish", "strength": 2, "description": "Strong uptrend with SMA20 > SMA50 > SMA100"})
-    elif sma_100 > sma_50 > sma_20:
-        results.append({"status": "bearish", "strength": 2, "description": "Strong downtrend with SMA100 > SMA50 > SMA20"})
+    if all(x > 0 for x in [sma_20_val, sma_50_val, sma_100_val]):
+        if sma_20_val > sma_50_val > sma_100_val:
+            results.append({"status": "bullish", "strength": 2, "description": "Strong uptrend with SMA20 > SMA50 > SMA100"})
+        elif sma_20_val < sma_50_val < sma_100_val:
+            results.append({"status": "bearish", "strength": 2, "description": "Strong downtrend with SMA100 > SMA50 > SMA20"})
     
-    return results
+    return results if results else [{"status": "unknown", "strength": 0, "description": "Insufficient moving average data"}]
 
-def interpret_bollinger_bands(price, bb_data):
-    """Interpret price position relative to Bollinger Bands"""
-    if isinstance(bb_data, list) and bb_data:
-        bb_data = bb_data[-1]
+def interpret_bollinger_bands(price: float, bb_data: Optional[Dict[str, float]]) -> Dict[str, Any]:
+    """Interpret Bollinger Bands"""
     if not bb_data:
         return {"status": "unknown", "strength": 0, "description": "No Bollinger Bands data"}
         
-    upper = bb_data.get('upper')
-    lower = bb_data.get('lower')
-    middle = bb_data.get('middle')
+    # Get BB values safely
+    bb_upper = bb_data.get('upper') if bb_data else None
+    bb_lower = bb_data.get('lower') if bb_data else None
+    bb_middle = bb_data.get('middle') if bb_data else None
     
-    if price > upper:
-        return {"status": "overbought", "strength": 2, "description": f"Price (${price:.2f}) above upper Bollinger Band (${upper:.2f}), suggesting overbought conditions"}
-    elif price < lower:
-        return {"status": "oversold", "strength": 2, "description": f"Price (${price:.2f}) below lower Bollinger Band (${lower:.2f}), suggesting oversold conditions"}
-    elif price > middle:
-        return {"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above BB middle band, showing upward momentum"}
-    elif price < middle:
-        return {"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below BB middle band, showing downward momentum"}
-    else:
-        return {"status": "neutral", "strength": 0, "description": f"Price at BB middle band, showing equilibrium"}
+    # Convert to floats after getting the values
+    upper_val = safe_float(bb_upper)
+    lower_val = safe_float(bb_lower)
+    middle_val = safe_float(bb_middle)
+    
+    if upper_val > 0 and lower_val > 0 and middle_val > 0:
+        if price > upper_val:
+            return {"status": "overbought", "strength": 2, "description": f"Price (${price:.2f}) above upper Bollinger Band (${upper_val:.2f})"}
+        elif price < lower_val:
+            return {"status": "oversold", "strength": 2, "description": f"Price (${price:.2f}) below lower Bollinger Band (${lower_val:.2f})"}
+        elif price > middle_val:
+            return {"status": "bullish", "strength": 1, "description": f"Price (${price:.2f}) above BB middle band"}
+        else:
+            return {"status": "bearish", "strength": 1, "description": f"Price (${price:.2f}) below BB middle band"}
+    
+    return {"status": "unknown", "strength": 0, "description": "Incomplete Bollinger Bands data"}
 
-def interpret_adx(adx):
-    """Interpret ADX (Average Directional Index) for trend strength"""
-    if isinstance(adx, list) and adx:
-        adx = adx[-1]
-    if adx is None:
+def interpret_adx(adx: Optional[float]) -> Dict[str, Any]:
+    """Interpret ADX (Average Directional Index)"""
+    adx_value = safe_float(adx)
+    if adx_value == 0:
         return {"status": "unknown", "strength": 0, "description": "No ADX data available"}
     
-    if adx > 40:
-        return {"status": "strong_trend", "strength": 3, "description": f"ADX at {adx:.2f} indicates very strong trend"}
-    elif adx > 25:
-        return {"status": "trending", "strength": 2, "description": f"ADX at {adx:.2f} indicates trending market"}
-    elif adx > 20:
-        return {"status": "weak_trend", "strength": 1, "description": f"ADX at {adx:.2f} indicates beginning trend"}
+    if adx_value > 40:
+        return {"status": "strong_trend", "strength": 3, "description": f"ADX at {adx_value:.2f} indicates very strong trend"}
+    elif adx_value > 25:
+        return {"status": "trending", "strength": 2, "description": f"ADX at {adx_value:.2f} indicates trending market"}
+    elif adx_value > 20:
+        return {"status": "weak_trend", "strength": 1, "description": f"ADX at {adx_value:.2f} indicates beginning trend"}
     else:
-        return {"status": "no_trend", "strength": 0, "description": f"ADX at {adx:.2f} indicates ranging/sideways market"}
+        return {"status": "no_trend", "strength": 0, "description": f"ADX at {adx_value:.2f} indicates ranging market"}
 
-def interpret_insider_activity(insider_data):
-    """Summarize insider trading activity"""
+def interpret_insider_activity(insider_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze insider trading activity"""
     if not insider_data:
-        return {"status": "unknown", "description": "No insider trading data available"}
-
-    # Fix: Handle string values that may contain commas and parentheses
-    net_activity_raw = insider_data.get('net_insider_activity_3m', 0)
-    if isinstance(net_activity_raw, str):
-        # Remove parentheses, commas, and other non-numeric characters
-        net_activity_clean = ''.join(c for c in net_activity_raw if c.isdigit() or c == '-')
-        net_activity_3m = int(net_activity_clean) if net_activity_clean else 0
-    else:
-        net_activity_3m = int(net_activity_raw)
-
-    recent_transactions = insider_data.get('recent_transactions', [])
-
-    buys = sum(1 for tx in recent_transactions if tx.get('transactionType') == 'Buy')
-    sells = sum(1 for tx in recent_transactions if tx.get('transactionType') == 'Sell')
-
+        return {"status": "unknown", "strength": 0, "description": "No insider trading data"}
+    
+    net_3m = safe_float(insider_data.get('net_insider_activity_3m', 0))
+    net_12m = safe_float(insider_data.get('net_insider_activity_12m', 0))
+    recent = insider_data.get('recent_transactions', [])
+    
+    buys = sum(1 for tx in recent if tx.get('transactionType') == 'Buy')
+    sells = sum(1 for tx in recent if tx.get('transactionType') == 'Sell')
+    
     if sells > buys and sells >= 3:
         return {
-            "status": "bearish", 
-            "strength": 2 if abs(net_activity_3m) > 1000000 else 1,
-            "description": f"Significant insider selling: {sells} sells vs {buys} buys, net {net_activity_3m:,} shares"
+            "status": "bearish",
+            "strength": 2 if abs(net_3m) > 1000000 else 1,
+            "description": f"Significant insider selling: {sells} sells vs {buys} buys in recent transactions"
         }
     elif buys > sells and buys >= 3:
         return {
-            "status": "bullish", 
-            "strength": 2 if abs(net_activity_3m) > 1000000 else 1,
-            "description": f"Significant insider buying: {buys} buys vs {sells} sells, net {net_activity_3m:,} shares"
-        }
-    else:
-        return {
-            "status": "neutral",
-            "strength": 0,
-            "description": f"Balanced insider activity: {buys} buys vs {sells} sells"
-        }
-
-
-def interpret_stochastic(stoch_data):
-    """Interpret Stochastic Oscillator values"""
-    if isinstance(stoch_data, list) and stoch_data:
-        stoch_data = stoch_data[-1]
-    if not stoch_data:
-        return {
-            "status": "unknown",
-            "strength": 0,
-            "description": "No stochastic data available",
-        }
-
-    k = stoch_data.get("stochastic_k")
-    d = stoch_data.get("stochastic_d")
-
-    if k > 80 and d > 80:
-        return {
-            "status": "overbought",
-            "strength": 2,
-            "description": f"Stochastic overbought with %K at {k:.1f} and %D at {d:.1f}",
-        }
-    elif k < 20 and d < 20:
-        return {
-            "status": "oversold",
-            "strength": 2,
-            "description": f"Stochastic oversold with %K at {k:.1f} and %D at {d:.1f}",
-        }
-    elif k > d and k < 80:
-        return {
             "status": "bullish",
-            "strength": 1,
-            "description": f"Bullish stochastic crossover with %K at {k:.1f} crossing above %D at {d:.1f}",
+            "strength": 2 if abs(net_3m) > 1000000 else 1,
+            "description": f"Significant insider buying: {buys} buys vs {sells} sells in recent transactions"
         }
-    elif k < d and k > 20:
-        return {
-            "status": "bearish",
-            "strength": 1,
-            "description": f"Bearish stochastic crossover with %K at {k:.1f} crossing below %D at {d:.1f}",
-        }
-    else:
-        return {
-            "status": "neutral",
-            "strength": 0,
-            "description": f"Neutral stochastic with %K at {k:.1f} and %D at {d:.1f}",
-        }
+    
+    return {
+        "status": "neutral",
+        "strength": 0,
+        "description": f"Balanced insider activity: {buys} buys vs {sells} sells"
+    }
 
-
-def interpret_price_trend(price_data, days=10):
-    """Analyze recent price action trend"""
-    recent_prices = [
-        price_data[date]["close"]
-        for date in list(price_data.keys())[: min(days, len(price_data))]
-    ]
-    if len(recent_prices) < 5:
-        return {
-            "status": "unknown",
-            "strength": 0,
-            "description": "Not enough price data",
-        }
-
-    up_days = sum(
-        1
-        for i in range(1, len(recent_prices))
-        if recent_prices[i] > recent_prices[i - 1]
-    )
-    down_days = sum(
-        1
-        for i in range(1, len(recent_prices))
-        if recent_prices[i] < recent_prices[i - 1]
-    )
-
-    if up_days > down_days * 2:
-        return {
-            "status": "strong_uptrend",
-            "strength": 3,
-            "description": f"Strong uptrend with {up_days}/{len(recent_prices)-1} up days",
-        }
-    elif up_days > down_days:
-        return {
-            "status": "uptrend",
-            "strength": 2,
-            "description": f"Uptrend with {up_days}/{len(recent_prices)-1} up days",
-        }
-    elif down_days > up_days * 2:
-        return {
-            "status": "strong_downtrend",
-            "strength": 3,
-            "description": f"Strong downtrend with {down_days}/{len(recent_prices)-1} down days",
-        }
-    elif down_days > up_days:
-        return {
-            "status": "downtrend",
-            "strength": 2,
-            "description": f"Downtrend with {down_days}/{len(recent_prices)-1} down days",
-        }
-    else:
-        return {
-            "status": "sideways",
-            "strength": 1,
-            "description": "Sideways price action",
-        }
-
-
-def interpret_institutional_holdings(holdings_data):
-    """Summarize institutional ownership"""
-    if not holdings_data:
-        return {"status": "unknown", "description": "No institutional holdings data available"}
-
-    ownership_summary = holdings_data.get('ownership_summary', {})
-    key_transactions = holdings_data.get('key_transactions', [])
-
-    # Get institutional ownership percentage
-    inst_ownership = ownership_summary.get("Institutional Ownership")
-
+def interpret_institutional_holdings(holdings_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyze institutional ownership patterns"""
+    if not holdings_data or 'ownership_summary' not in holdings_data:
+        return {"status": "unknown", "strength": 0, "description": "No institutional holdings data"}
+    
+    ownership = holdings_data.get('ownership_summary', {})
+    transactions = holdings_data.get('key_transactions', [])
+    
+    inst_ownership = None
+    for key, value in ownership.items():
+        if 'institutional' in key.lower():
+            inst_ownership = safe_float(value)
+            break
+    
     if inst_ownership is None:
-        return {"status": "unknown", "description": "Institutional ownership data not available"}
+        return {"status": "unknown", "strength": 0, "description": "Cannot determine institutional ownership level"}
+    
+    # Count recent institutional activity
+    increases = sum(1 for tx in transactions if safe_float(tx.get('sharesChange', 0)) > 0)
+    decreases = sum(1 for tx in transactions if safe_float(tx.get('sharesChange', 0)) < 0)
+    
+    status = "high_ownership" if inst_ownership > 0.7 else "moderate_ownership" if inst_ownership > 0.4 else "low_ownership"
+    activity = "accumulating" if increases > decreases else "distributing" if decreases > increases else "neutral"
+    
+    return {
+        "status": status,
+        "strength": 2 if abs(increases - decreases) >= 3 else 1,
+        "description": f"Institutional ownership at {inst_ownership*100:.1f}% with {activity} activity"
+    }
 
-    # Calculate net institutional buying/selling
-    buys = 0
-    sells = 0
-    for tx in key_transactions:
-        if "+" in tx.get('sharesChangePCT', ''):
-            buys += 1
-        elif "-" in tx.get('sharesChangePCT', ''):
-            sells += 1
-
-    if inst_ownership > 0.7:
-        status = "very_high_ownership"
-        base_desc = f"Very high institutional ownership ({inst_ownership*100:.1f}%)"
-    elif inst_ownership > 0.5:
-        status = "high_ownership"
-        base_desc = f"High institutional ownership ({inst_ownership*100:.1f}%)"
-    elif inst_ownership > 0.3:
-        status = "moderate_ownership"
-        base_desc = f"Moderate institutional ownership ({inst_ownership*100:.1f}%)"
-    else:
-        status = "low_ownership"
-        base_desc = f"Low institutional ownership ({inst_ownership*100:.1f}%)"
-
-    # Add transaction trend to description
-    if buys > sells and buys >= 3:
-        return {
-            "status": status, 
-            "strength": 2,
-            "description": f"{base_desc} with net accumulation ({buys} increases vs {sells} decreases)"
-        }
-    elif sells > buys and sells >= 3:
-        return {
-            "status": status, 
-            "strength": 1,
-            "description": f"{base_desc} with net distribution ({sells} decreases vs {buys} increases)"
-        }
-    else:
-        return {
-            "status": status,
-            "strength": 1,
-            "description": f"{base_desc} with balanced institutional activity"
-        }
-
-def interpret_support_resistance(price, support_resistance_data):
-    """Analyze support and resistance levels relative to current price"""
-    if isinstance(support_resistance_data, list) and support_resistance_data:
-        support_resistance_data = support_resistance_data[-1]
-    if not support_resistance_data:
-        return {"status": "unknown", "description": "No support/resistance data available"}
+def generate_preliminary_rating(data: Dict[str, Any]) -> Dict[str, Any]:
+    """Generate a preliminary rating based on technical and fundamental factors"""
+    has_core_data, indicator_availability = validate_historical_data(data)
+    if not has_core_data:
+        return {"rating": 0, "confidence": 0, "explanations": ["Insufficient data for core indicators"]}
     
-    supports = support_resistance_data.get('supports', [])
-    resistances = support_resistance_data.get('resistances', [])
-    
-    if not supports and not resistances:
-        return {"status": "unknown", "description": "No support/resistance levels identified"}
-    
-    # Find closest support and resistance levels
-    closest_support = None
-    closest_support_dist = float('inf')
-    for support in supports:
-        if support < price and price - support < closest_support_dist:
-            closest_support = support
-            closest_support_dist = price - support
-    
-    closest_resistance = None
-    closest_resistance_dist = float('inf')
-    for resistance in resistances:
-        if resistance > price and resistance - price < closest_resistance_dist:
-            closest_resistance = resistance
-            closest_resistance_dist = resistance - price
-    
-    # Calculate risk/reward based on closest levels
-    if closest_support and closest_resistance:
-        risk = price - closest_support
-        reward = closest_resistance - price
-        ratio = reward / risk if risk > 0 else 0
-        
-        if ratio >= 2:
-            return {
-                "status": "bullish",
-                "strength": 2,
-                "description": f"Strong risk/reward ratio ({ratio:.1f}:1) with support at ${closest_support:.2f} and resistance at ${closest_resistance:.2f}"
-            }
-        elif ratio > 1:
-            return {
-                "status": "bullish",
-                "strength": 1,
-                "description": f"Positive risk/reward ratio ({ratio:.1f}:1) with support at ${closest_support:.2f} and resistance at ${closest_resistance:.2f}"
-            }
-        else:
-            return {
-                "status": "bearish",
-                "strength": 1,
-                "description": f"Poor risk/reward ratio ({ratio:.1f}:1) with support at ${closest_support:.2f} and resistance at ${closest_resistance:.2f}"
-            }
-    elif closest_support:
-        return {
-            "status": "neutral",
-            "strength": 1,
-            "description": f"Support identified at ${closest_support:.2f} (${price-closest_support:.2f} below current price)"
-        }
-    elif closest_resistance:
-        return {
-            "status": "neutral",
-            "strength": 1,
-            "description": f"Resistance identified at ${closest_resistance:.2f} (${closest_resistance-price:.2f} above current price)"
-        }
-    
-    return {"status": "unknown", "description": "Could not analyze support/resistance"}
-
-def interpret_cci(cci):
-    """Interpret Commodity Channel Index (CCI)"""
-    if isinstance(cci, list) and cci:
-        cci = cci[-1]
-    if cci is None:
-        return {"status": "unknown", "strength": 0, "description": "No CCI data available"}
-    
-    if cci > 100:
-        return {"status": "overbought", "strength": 2, "description": f"CCI at {cci:.1f} indicates overbought conditions"}
-    elif cci < -100:
-        return {"status": "oversold", "strength": 2, "description": f"CCI at {cci:.1f} indicates oversold conditions"}
-    elif cci > 0:
-        return {"status": "bullish", "strength": 1, "description": f"CCI at {cci:.1f} shows mild bullish momentum"}
-    else:
-        return {"status": "bearish", "strength": 1, "description": f"CCI at {cci:.1f} shows mild bearish momentum"}
-
-def generate_preliminary_rating(stock_data):
-    """Calculate preliminary rating score (0-100) based on technical and fundamental factors"""
-    tech_score = 0
-    fund_score = 0
-    max_tech = 70
-    max_fund = 30
+    technical_score = 0
+    fundamental_score = 0
     explanations = []
     
-    # Get current price and indicators
-    indicators = stock_data.get('technical_indicators', {})
-    price_data = stock_data.get('historical_quotes', {})
+    # Technical Analysis (70% weight)
+    if "technical_summary" in data:
+        ta_summary = data["technical_summary"]
+        if isinstance(ta_summary, ComprehensiveSummary):
+            # Calculate technical score based on trend and momentum
+            trend_confidence = sum(ind.confidence for ind in ta_summary.trend_indicators) / len(ta_summary.trend_indicators)
+            momentum_confidence = sum(ind.confidence for ind in ta_summary.momentum_indicators) / len(ta_summary.momentum_indicators)
+            technical_score = (trend_confidence + momentum_confidence) * 50  # Same as technical rating
+            explanations.append(f"Technical analysis suggests {ta_summary.overall_signal} trend (Score: {technical_score:.0f})")
     
-    if not price_data or not indicators:
-        return {"rating": 50, "confidence": 1, "technical_score": "0/70", 
-                "fundamental_score": "0/30", "explanations": ["Insufficient data"]}
+    # Fundamental Analysis (30% weight)
+    inst_analysis = interpret_institutional_holdings(data.get('institutional_holdings', {}))
+    insider_analysis = interpret_insider_activity(data.get('insider_trading', {}))
     
-    try:
-        # Get most recent price
-        recent_date = list(price_data.keys())[0]
-        current_price = price_data[recent_date]['close']
-        
-        # Analyze technical indicators (all interpretation functions handle lists internally)
-        # RSI analysis
-        rsi_analysis = interpret_rsi(indicators.get('rsi'))
-        rsi_value = indicators.get('rsi')
-        if isinstance(rsi_value, list) and rsi_value:
-            rsi_value = rsi_value[-1]
-            
-        if rsi_analysis['status'] == 'oversold':
-            tech_score += 20
-            explanations.append(f"RSI oversold ({rsi_value:.2f})")
-        elif rsi_analysis['status'] == 'overbought':
-            tech_score += 5
-            explanations.append(f"RSI overbought ({rsi_value:.2f})")
-        elif rsi_analysis['status'] == 'bullish':
-            tech_score += 15
-            explanations.append(f"RSI bullish ({rsi_value:.2f})")
-        elif rsi_analysis['status'] == 'bearish':
-            tech_score += 10
-            explanations.append(f"RSI bearish ({rsi_value:.2f})")
-        else:
-            tech_score += 12
-            explanations.append(f"RSI neutral ({rsi_value:.2f})")
-        
-        # MACD analysis
-        macd_analysis = interpret_macd(indicators.get('macd', {}))
-        if macd_analysis['status'] == 'bullish':
-            tech_score += 15 if macd_analysis['strength'] == 2 else 12
-            explanations.append("Strong bullish MACD signal" if macd_analysis['strength'] == 2 else "Bullish MACD signal")
-        elif macd_analysis['status'] == 'bearish':
-            tech_score += 5 if macd_analysis['strength'] == 2 else 8
-            explanations.append("Strong bearish MACD signal" if macd_analysis['strength'] == 2 else "Bearish MACD signal")
-        else:
-            tech_score += 10
-            explanations.append("Neutral MACD signal")
-            
-        # Moving averages
-        ma_analyses = interpret_moving_averages(current_price, 
-                                               indicators.get('sma_20'),
-                                               indicators.get('sma_50'),
-                                               indicators.get('sma_100'))
-        
-        ma_bullish = sum(1 for ma in ma_analyses if ma['status'] == 'bullish')
-        ma_bearish = sum(1 for ma in ma_analyses if ma['status'] == 'bearish')
-        
-        if ma_bullish > ma_bearish:
-            tech_score += 15
-            explanations.append(f"Bullish moving average alignment ({ma_bullish}/{len(ma_analyses)})")
-        elif ma_bearish > ma_bullish:
-            tech_score += 5
-            explanations.append(f"Bearish moving average alignment ({ma_bearish}/{len(ma_analyses)})")
-        else:
-            tech_score += 10
-            explanations.append("Mixed moving average signals")
-            
-        # Bollinger Bands
-        bb_analysis = interpret_bollinger_bands(current_price, indicators.get('bollinger_bands', {}))
-        if bb_analysis['status'] == 'oversold':
-            tech_score += 15
-            explanations.append("Price below lower Bollinger Band (oversold)")
-        elif bb_analysis['status'] == 'overbought':
-            tech_score += 5
-            explanations.append("Price above upper Bollinger Band (overbought)")
-        elif bb_analysis['status'] == 'bullish':
-            tech_score += 12
-            explanations.append("Price above Bollinger middle band (bullish)")
-        elif bb_analysis['status'] == 'bearish':
-            tech_score += 8
-            explanations.append("Price below Bollinger middle band (bearish)")
-            
-        # ADX (trend strength)
-        adx_value = indicators.get('adx')
-        adx_analysis = interpret_adx(indicators.get('adx'))
-        if isinstance(adx_value, list) and adx_value:
-            adx_value = adx_value[-1]
-        if adx_analysis['status'] == 'strong_trend':
-            # Add points based on which direction is trending
-            tech_score += 5 if ma_bullish > ma_bearish else 3
-            explanations.append(f"Strong trend with ADX {adx_value:.2f} ({('bullish' if ma_bullish > ma_bearish else 'bearish')})")
-        elif adx_analysis['status'] == 'no_trend':
-            tech_score += 3
-            explanations.append(f"No clear trend with ADX {adx_value:.2f}")
-            
-        # Stochastic analysis
-        stoch_analysis = interpret_stochastic(indicators.get('stochastic_14_3_3', {}))
-        if stoch_analysis['status'] == 'oversold':
-            tech_score += 12
-            explanations.append("Stochastic oversold (bullish)")
-        elif stoch_analysis['status'] == 'overbought':
-            tech_score += 5
-            explanations.append("Stochastic overbought (bearish)")
-        elif stoch_analysis['status'] == 'bullish':
-            tech_score += 8
-            explanations.append("Bullish stochastic crossover")
-        
-        # CCI analysis
-        cci_analysis = interpret_cci(indicators.get('cci'))
-        if cci_analysis['status'] == 'oversold':
-            tech_score += 10
-            explanations.append("CCI oversold (bullish)")
-        elif cci_analysis['status'] == 'overbought':
-            tech_score += 4
-            explanations.append("CCI overbought (bearish)")
-        
-        # Support/Resistance analysis
-        sr_analysis = interpret_support_resistance(current_price, indicators.get('support_resistance', {}))
-        if sr_analysis['status'] == 'bullish':
-            tech_score += sr_analysis['strength'] * 5
-            explanations.append(sr_analysis['description'])
-        elif sr_analysis['status'] == 'bearish':
-            tech_score += 3
-            explanations.append(sr_analysis['description'])
-        
-    except (KeyError, IndexError) as e:
-        explanations.append(f"Error analyzing technical indicators: {e}")
-        logger.error(f"Error analyzing technical indicators: {e}")
-
-    # Fundamental factors (30 points max)
-    # Insider activity
-    insider_analysis = interpret_insider_activity(stock_data.get('insider_trading', {}))
-    if insider_analysis['status'] == 'bullish':
-        fund_score += 8
-    elif insider_analysis['status'] == 'bearish':
-        fund_score += 2
-    else:
-        fund_score += 5
+    if inst_analysis['status'] != "unknown":
+        if "high_ownership" in inst_analysis['status']:
+            fundamental_score += 15
+        elif "moderate_ownership" in inst_analysis['status']:
+            fundamental_score += 10
+        explanations.append(inst_analysis['description'])
+    
+    if insider_analysis['status'] == "bullish":
+        fundamental_score += 15
+    elif insider_analysis['status'] == "bearish":
+        fundamental_score -= 10
     explanations.append(insider_analysis['description'])
     
-    # Institutional holdings
-    inst_analysis = interpret_institutional_holdings(stock_data.get('institutional_holdings', {}))
-    if 'high_ownership' in inst_analysis['status']:
-        fund_score += 10 if 'accumulation' in inst_analysis['description'] else 8
-    elif 'moderate_ownership' in inst_analysis['status']:
-        fund_score += 7 if 'accumulation' in inst_analysis['description'] else 5
-    else:
-        fund_score += 3
-    explanations.append(inst_analysis['description'])
-    
-    # Sentiment
-    sentiment = stock_data.get('reddit_wallstreetbets_sentiment', {}).get('sentiment_score_from_neg10_to_pos10')
-    if sentiment is not None:
-        if sentiment > 5:
-            fund_score += 7
-            explanations.append(f"Very positive social sentiment (score: {sentiment})")
-        elif sentiment > 2:
-            fund_score += 5
-            explanations.append(f"Positive social sentiment (score: {sentiment})")
-        elif sentiment < -5:
-            fund_score += 1
-            explanations.append(f"Very negative social sentiment (score: {sentiment})")
-        elif sentiment < -2:
-            fund_score += 2
-            explanations.append(f"Negative social sentiment (score: {sentiment})")
-        else:
-            fund_score += 3
-            explanations.append(f"Neutral social sentiment (score: {sentiment})")
-    
-    # Revenue and earnings
-    if stock_data.get('revenue_earnings'):
-        has_revenue = any(isinstance(q, dict) and q.get('revenue') not in ('N/A', None) 
-                         for q in stock_data.get('revenue_earnings', []))
-        fund_score += 5 if has_revenue else 2
-        explanations.append("Revenue-generating company" if has_revenue else "Pre-revenue company (higher risk)")
-    
-    # Calculate confidence and normalize scores
-    data_points = len(explanations)
-    confidence = max(1, min(10, data_points // 2))
-    
-    normalized_tech = int((tech_score / max_tech) * 70)
-    normalized_fund = int((fund_score / max_fund) * 30)
-    total_score = normalized_tech + normalized_fund
+    total_score = min(100, max(0, technical_score + fundamental_score))
+    confidence = 7 + (len(explanations) / 5)  # Base confidence + bonus for more signals
     
     return {
         "rating": total_score,
-        "confidence": confidence,
-        "technical_score": f"{normalized_tech}/70",
-        "fundamental_score": f"{normalized_fund}/30",
+        "technical_score": technical_score,
+        "fundamental_score": fundamental_score,
+        "confidence": min(10, confidence),
         "explanations": explanations
     }
 
-def generate_entry_exit_strategy(stock_data):
-    """
-    Generate entry and exit strategy based on technical indicators
+def generate_entry_exit_strategy(data: Dict[str, Any]) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    """Generate entry and exit strategies based on technical analysis"""
+    has_core_data, indicator_availability = validate_historical_data(data)
+    if not has_core_data:
+        return ({"error": "Insufficient data for core indicators"}, {"error": "Insufficient data for core indicators"})
     
-    Args:
-        stock_data: Dictionary containing parsed stock data
-        
-    Returns:
-        dict: Entry and exit strategies
-    """
-    indicators = stock_data.get('technical_indicators', {})
-    price_data = stock_data.get('historical_quotes', {})
+    entry_strategy = {}
+    exit_strategy = {}
+    current_price = 0
     
-    if not price_data or not indicators:
-        return {}, {}
-        
-    try:
-        # Get most recent price
-        recent_date = list(price_data.keys())[0]
-        current_price = price_data[recent_date]['close']
-        
-        # Entry strategy
-        entry = {
-            "entry_price": None,
-            "entry_timing": None,
-            "technical_indicators": []
-        }
-        
-        # Exit strategy
-        exit = {
-            "profit_target": None,
-            "stop_loss": None,
-            "time_horizon": None,
-            "exit_conditions": []
-        }
-        
-        # SMA analysis
-        sma_20 = indicators.get('sma_20')
-        sma_50 = indicators.get('sma_50')
-        sma_100 = indicators.get('sma_100')
-        
-        # Bollinger bands
-        bb = indicators.get('bollinger_bands', {})
-        bb_upper = bb.get('upper')
-        bb_lower = bb.get('lower')
-        
-        # MACD
-        macd_data = indicators.get('macd', {})
-        
-        # RSI
-        rsi = indicators.get('rsi')
-        
-        # Volume
-        volume_profile = indicators.get('volume_profile', {})
-        avg_volume = volume_profile.get('avg_volume', 0) if isinstance(volume_profile, dict) else 0
-        
-        # Entry strategies based on technical setup
-        if current_price < sma_20 and current_price < sma_50:
-            entry["entry_price"] = f"Break above SMA20 (${sma_20:.2f})"
-            entry["entry_timing"] = "Wait for bullish confirmation via MACD crossover"
-            entry["technical_indicators"].append(f"SMA20 resistance at ${sma_20:.2f}")
-        elif current_price > sma_20 and current_price > sma_50:
-            entry["entry_price"] = f"Current price ${current_price:.2f} or pullback to SMA20 (${sma_20:.2f})"
-            entry["entry_timing"] = "Immediate or on pullback"
-            entry["technical_indicators"].append(f"SMA20 support at ${sma_20:.2f}")
-        else:
-            entry["entry_price"] = f"Confirm break above ${sma_20:.2f} with volume"
-            entry["entry_timing"] = "Wait for confirmation"
-            entry["technical_indicators"].append(f"Mixed signals at current price (${current_price:.2f})")
+    # Get current price from historical quotes
+    quotes = data.get('historical_quotes', {})
+    if quotes:
+        latest_quote = next(iter(quotes.values()))
+        current_price = safe_float(latest_quote.get('close'))
+    
+    if "technical_summary" in data:
+        ta_summary = data["technical_summary"]
+        if isinstance(ta_summary, (dict, ComprehensiveSummary)):
+            signal_strength = ta_summary.signal_strength if isinstance(ta_summary, ComprehensiveSummary) else ta_summary.get('signal_strength', 0)
+            overall_signal = ta_summary.overall_signal if isinstance(ta_summary, ComprehensiveSummary) else ta_summary.get('overall_signal', 'neutral')
             
-        # Volume condition
-        if avg_volume:
-            entry["technical_indicators"].append(f"Look for volume > {float(avg_volume/1000000)}M shares")
-        
-        # Use support/resistance levels for entry/exit
-        support_resistance = indicators.get('support_resistance', {})
-        supports = support_resistance.get('supports', [])
-        resistances = support_resistance.get('resistances', [])
-        
-        # Add support level to stop loss considerations
-        if supports and len(supports) > 0:
-            closest_support = max([s for s in supports if s < current_price], default=None)
-            if closest_support:
-                entry["technical_indicators"].append(f"Support level at ${closest_support:.2f}")
-                if exit.get("stop_loss") is None:
-                    exit["stop_loss"] = f"${closest_support:.2f} (-{((current_price/closest_support)-1)*100:.1f}%)"
-        
-        # Add resistance level to profit target considerations
-        if resistances and len(resistances) > 0:
-            closest_resistance = min([r for r in resistances if r > current_price], default=None)
-            if closest_resistance:
-                entry["technical_indicators"].append(f"Resistance level at ${closest_resistance:.2f}")
-                if exit.get("profit_target") is None:
-                    exit["profit_target"] = f"${closest_resistance:.2f} (+{((closest_resistance/current_price)-1)*100:.1f}%)"
-
-        if bb_upper:
-            if not exit.get("profit_target"):
-                exit["profit_target"] = f"${bb_upper:.2f} (Bollinger Upper Band, +{((bb_upper/current_price)-1)*100:.1f}%)"
+            # Entry strategy
+            entry_strategy = {
+                "entry_price": current_price,
+                "entry_timing": "Immediate" if signal_strength >= 2 else "Staged",
+                "technical_indicators": []
+            }
             
-        if bb_lower and sma_100:
-            if current_price > sma_100 and not exit.get("stop_loss"):
-                # If above SMA100, use it as stop loss
-                exit["stop_loss"] = f"${sma_100:.2f} (-{((current_price/sma_100)-1)*100:.1f}%)"
-            elif not exit.get("stop_loss"):
-                # If below SMA100, use BB lower
-                exit["stop_loss"] = f"${bb_lower:.2f} (-{((current_price/bb_lower)-1)*100:.1f}%)"
+            # Collect technical indicators
+            if isinstance(ta_summary, ComprehensiveSummary):
+                indicators = [ind.interpretation for ind in ta_summary.trend_indicators + ta_summary.momentum_indicators
+                            if ind.signal_type == ta_summary.overall_signal]
+            else:
+                indicators = [ind['interpretation'] for indicators in (ta_summary.get('trend_indicators', []) + ta_summary.get('momentum_indicators', []))
+                            for ind in [indicators] if ind.get('signal_type') == overall_signal]
+            
+            entry_strategy["technical_indicators"] = indicators
+            
+            # Exit strategy
+            if isinstance(ta_summary, ComprehensiveSummary):
+                volatility_metrics = ta_summary.volatility_metrics.value
+                if isinstance(volatility_metrics, dict):
+                    atr = safe_float(volatility_metrics.get('atr', 0))
+                    volatility_pct = safe_float(ta_summary.risk_metrics.get('volatility_percent', 0))
+                    
+                    exit_strategy = {
+                        "profit_target": current_price * 1.15,  # 15% target
+                        "stop_loss": current_price - (2 * atr) if atr else current_price * 0.92,
+                        "time_horizon": "Short-term" if volatility_pct > 5 else "Medium-term",
+                        "exit_conditions": [
+                            f"Price drops below {current_price * 0.92:.2f} (8% loss)",
+                            f"Technical indicators reverse to {overall_signal}"
+                        ]
+                    }
+            else:
+                volatility_metrics = ta_summary.get('volatility_metrics', {}).get('value', {})
+                risk_metrics = ta_summary.get('risk_metrics', {})
+                atr = safe_float(volatility_metrics.get('atr', 0))
+                volatility_pct = safe_float(risk_metrics.get('volatility_percent', 0))
                 
-        exit["exit_conditions"].append("Close below SMA100")
+                exit_strategy = {
+                    "profit_target": current_price * 1.15,
+                    "stop_loss": current_price - (2 * atr) if atr else current_price * 0.92,
+                    "time_horizon": "Short-term" if volatility_pct > 5 else "Medium-term",
+                    "exit_conditions": [
+                        f"Price drops below {current_price * 0.92:.2f} (8% loss)",
+                        f"Technical indicators reverse to {overall_signal}"
+                    ]
+                }
+    
+    return entry_strategy, exit_strategy
+
+def generate_comprehensive_summary(stock_data: Dict[str, Any]) -> ComprehensiveSummary:
+    """Generate comprehensive technical analysis summary using available indicators"""
+    has_core_data, indicator_availability = validate_historical_data(stock_data)
+    if not has_core_data:
+        raise ValueError("Insufficient data for core indicators (minimum 20 days required)")
         
-        if rsi:
-            exit["exit_conditions"].append("RSI > 70 (overbought)")
-            
-        stoch = indicators.get('stochastic_14_3_3', {})
-        if stoch and stoch.get('stochastic_k') is not None:
-            exit["exit_conditions"].append("Stochastic K line crosses below 80 from above")
-
-        cci = indicators.get('cci')
-        if cci is not None and cci > 100:
-            exit["exit_conditions"].append(f"CCI falls below 100 from {cci:.1f}")
-
-        atr = indicators.get('atr')
-        if atr:
-            # Conservative profit target: 2x ATR
-            conservative_target = current_price + (2 * atr)
-            # Aggressive profit target: 3x ATR
-            aggressive_target = current_price + (3 * atr)
-            # Conservative stop loss: 1x ATR
-            tight_stop = current_price - atr
-            
-            exit["profit_targets"] = {
-                "conservative": f"${conservative_target:.2f} (+{((conservative_target/current_price)-1)*100:.1f}%)",
-                "aggressive": f"${aggressive_target:.2f} (+{((aggressive_target/current_price)-1)*100:.1f}%)"
-            }
-            exit["stop_options"] = {
-                "tight": f"${tight_stop:.2f} (-{((current_price/tight_stop)-1)*100:.1f}%)",
-                "standard": exit["stop_loss"]
-            }
-
-        # Key news catalysts
-        if "Press_releases" in stock_data:
-            exit["exit_conditions"].append("Negative news on product development")
+    indicators = stock_data.get('technical_indicators', {})
+    if not indicators:
+        raise ValueError("No technical indicators data available")
         
-        return entry, exit
-    except Exception as e:
-        logger.error(f"Error generating strategies: {e}")
-        return {}, {}
+    price_data = stock_data.get('historical_quotes', {})
+    prices = list(price_data.values())
+    if len(prices) < 2:
+        raise ValueError("At least 2 days of price history required")
+        
+    current_price = float(prices[0]['close'])
+    prev_price = float(prices[1]['close'])
+    
+    # Price action summary
+    price_action = {
+        "current_price": current_price,
+        "daily_change": round(current_price - prev_price, 2),
+        "daily_change_percent": round((current_price / prev_price - 1) * 100, 2),
+        "weekly_high": max(float(x['high']) for x in prices[:5]),
+        "weekly_low": min(float(x['low']) for x in prices[:5])
+    }
+    
+    # Technical indicators
+    trend_indicators = []
+    momentum_indicators = []
+    
+    # Moving Averages - use what's available
+    sma_20 = safe_float(indicators.get('sma_20')) if indicator_availability.get('sma_20') else None
+    sma_50 = safe_float(indicators.get('sma_50')) if indicator_availability.get('sma_50') else None
+    sma_100 = safe_float(indicators.get('sma_100')) if indicator_availability.get('sma_100') else None
+    
+    ma_analysis = interpret_moving_averages(current_price, sma_20, sma_50, sma_100)
+    
+    trend_indicators.append(
+        IndicatorSummary(
+            name="Moving Averages",
+            value={
+                "sma20": sma_20,
+                "sma50": sma_50,
+                "sma100": sma_100
+            },
+            interpretation=ma_analysis[0]['description'],
+            signal_type=ma_analysis[0]['status'],
+            signal_strength=ma_analysis[0]['strength'],
+            confidence=0.8
+        )
+    )
+    
+    # ADX
+    adx_value = safe_float(indicators.get('adx'))
+    adx_analysis = interpret_adx(adx_value if adx_value > 0 else None)
+    trend_indicators.append(
+        IndicatorSummary(
+            name="ADX",
+            value=adx_value,
+            interpretation=adx_analysis['description'],
+            signal_type=adx_analysis['status'],
+            signal_strength=adx_analysis['strength'],
+            confidence=0.9
+        )
+    )
+    
+    # MACD - only if available (needs 26 days)
+    if indicator_availability.get('macd'):
+        macd_data = indicators.get('macd', {})
+        if isinstance(macd_data, dict) and macd_data:
+            macd_analysis = interpret_macd(macd_data)
+            momentum_indicators.append(
+                IndicatorSummary(
+                    name="MACD",
+                    value=macd_data,
+                    interpretation=macd_analysis['description'],
+                    signal_type=macd_analysis['status'],
+                    signal_strength=macd_analysis['strength'],
+                    confidence=0.85
+                )
+            )
+    
+    # RSI
+    rsi_value = safe_float(indicators.get('rsi'))
+    rsi_analysis = interpret_rsi(rsi_value if rsi_value > 0 else None)
+    momentum_indicators.append(
+        IndicatorSummary(
+            name="RSI",
+            value=rsi_value,
+            interpretation=rsi_analysis['description'],
+            signal_type=rsi_analysis['status'],
+            signal_strength=rsi_analysis['strength'],
+            confidence=0.9
+        )
+    )
+    
+    # Volume analysis
+    volume_data = indicators.get('volume_profile', {})
+    volume_analysis = IndicatorSummary(
+        name="Volume",
+        value=volume_data,
+        interpretation=f"Volume {volume_data.get('volume_trend', 'unknown')} with {volume_data.get('relative_volume', 1)}x relative volume",
+        signal_type="bullish" if safe_float(volume_data.get('relative_volume', 1)) > 1.5 else "neutral",
+        signal_strength=2 if safe_float(volume_data.get('relative_volume', 1)) > 2 else 1,
+        confidence=0.7
+    )
+    
+    # Overall analysis
+    bullish_signals = sum(1 for x in trend_indicators + momentum_indicators if x.signal_type == "bullish")
+    bearish_signals = sum(1 for x in trend_indicators + momentum_indicators if x.signal_type == "bearish")
+    
+    overall_signal = "bullish" if bullish_signals > bearish_signals else "bearish" if bearish_signals > bullish_signals else "neutral"
+    signal_strength = max(1, min(3, abs(bullish_signals - bearish_signals)))
+    
+    # Risk metrics
+    atr = safe_float(indicators.get('atr'))
+    # Calculate risk metrics safely
+    vol_pct = (atr / current_price * 100) if atr and current_price else 0
+    risk_metrics = {
+        "volatility": atr,
+        "volatility_percent": float(vol_pct),
+        "trend_strength": safe_float(adx_value),
+        "risk_level": (str("high") if adx_value > 40 
+                      else str("moderate") if adx_value > 20 
+                      else str("low"))
+    }
+    
+    # Support/Resistance levels
+    support_resistance_data = indicators.get('support_resistance', {})
+    def convert_to_float(val: Any) -> Optional[float]:
+        """Convert a value to float safely"""
+        try:
+            if isinstance(val, (int, float)):
+                return float(val)
+            if isinstance(val, str):
+                # First try direct conversion
+                return float(val)
+            return None
+        except (ValueError, TypeError):
+            return None
+
+    raw_supports = support_resistance_data.get('supports', [])
+    raw_resistances = support_resistance_data.get('resistances', [])
+    
+    supports = [f for f in (convert_to_float(s) for s in raw_supports) if f is not None]
+    resistances = [f for f in (convert_to_float(r) for r in raw_resistances) if f is not None]
+    
+    immediate_support = next((s for s in supports if safe_float(s) > 0 and safe_float(s) < safe_float(current_price)), None)
+    immediate_resistance = next((r for r in resistances if safe_float(r) > 0 and safe_float(r) > safe_float(current_price)), None)
+    
+    # Get MA crossovers
+    ma_crosses = indicators.get('ma_crossovers', {})
+
+    # Get candlestick patterns
+    candlestick_patterns = indicators.get('candlestick_patterns', {})
+
+    # Enhanced support/resistance with pattern confluence
+    support_resistance = {
+        "supports": supports,
+        "resistances": resistances,
+        "pattern_confluence": indicators.get('support_resistance', {}).get('pattern_confluence', [])
+    }
+
+    return ComprehensiveSummary(
+        price_action=price_action,
+        trend_indicators=trend_indicators,
+        momentum_indicators=momentum_indicators,
+        volume_analysis=volume_analysis,
+        volatility_metrics=IndicatorSummary(
+            name="Volatility",
+            value={"atr": atr},
+            interpretation=f"ATR at {atr:.2f} ({risk_metrics['volatility_percent']:.1f}% of price)",
+            signal_type="neutral",
+            signal_strength=2 if risk_metrics['volatility_percent'] > 5 else 1,
+            confidence=0.8
+        ),
+        support_resistance=support_resistance,
+        candlestick_patterns=candlestick_patterns,
+        overall_signal=overall_signal,
+        signal_strength=signal_strength,
+        key_levels={
+            "immediate_support": immediate_support,
+            "immediate_resistance": immediate_resistance,
+            "ma_support": float(sma_20) if isinstance(sma_20, (int, float)) and sma_20 > 0 else None
+        },
+        risk_metrics=risk_metrics,
+        ma_crosses=ma_crosses
+    )
+
+def generate_trading_signals(summary: ComprehensiveSummary) -> Dict[str, Any]:
+    """Generate actionable trading signals"""
+    trend_confidence = sum(ind.confidence for ind in summary.trend_indicators) / len(summary.trend_indicators)
+    momentum_confidence = sum(ind.confidence for ind in summary.momentum_indicators) / len(summary.momentum_indicators)
+    
+    # Additional confidence from candlestick patterns
+    pattern_confidence = 0.0
+    pattern_count = 0
+    for pattern in summary.candlestick_patterns.values():
+        pattern_count += 1
+        pattern_confidence += pattern.get('strength', 0)
+    if pattern_count > 0:
+        pattern_confidence = pattern_confidence / pattern_count
+    
+    # Combine confidences with higher weight for candlestick patterns near S/R levels
+    total_confidence = (trend_confidence * 0.4 + 
+                       momentum_confidence * 0.4 + 
+                       pattern_confidence * 0.2)
+    
+    signals = {
+        "primary_signal": summary.overall_signal,
+        "signal_strength": summary.signal_strength,
+        "risk_level": summary.risk_metrics["risk_level"],
+        "confidence": total_confidence,
+        "suggested_stops": {
+            "tight": summary.price_action["current_price"] * 0.98,
+            "wide": summary.price_action["current_price"] * 0.95
+        }
+    }
+    
+    return signals
+
+def calculate_risk_reward(current_price: float, target: float, stop_loss: float) -> float:
+    """Calculate risk/reward ratio"""
+    if stop_loss >= current_price or current_price >= target:
+        return 0.0
+    risk = current_price - stop_loss
+    reward = target - current_price
+    return reward / risk if risk > 0 else 0.0
+
+def format_summary_for_llm(summary: ComprehensiveSummary, indicators: Dict[str, Any]) -> str:
+    """Format the technical analysis summary for LLM consumption"""
+    trend_confidence = sum(ind.confidence for ind in summary.trend_indicators) / len(summary.trend_indicators)
+    momentum_confidence = sum(ind.confidence for ind in summary.momentum_indicators) / len(summary.momentum_indicators)
+    overall_confidence = min(trend_confidence, momentum_confidence)
+    
+    # Calculate nearest support and resistance
+    price = summary.price_action['current_price']
+    supports = sorted([s for s in summary.support_resistance['supports'] if safe_float(s) < safe_float(price)], reverse=True)
+    resistances = sorted([r for r in summary.support_resistance['resistances'] if safe_float(r) > safe_float(price)])
+    
+    support = supports[0] if supports else "N/A"
+    resistance = resistances[0] if resistances else "N/A"
+    
+    # Calculate risk/reward for the trade
+    # Use ATR-based stop if no support level available
+    atr = indicators.get('atr', 0)
+    default_stop = price - (2 * atr) if atr else price * 0.92
+    
+    # Use MA20 as support if available
+    ma_support = summary.key_levels.get('ma_support')
+    # Set effective support and target levels
+    effective_support = (
+        support if isinstance(support, (int, float)) 
+        else (ma_support if ma_support and safe_float(ma_support) < safe_float(price) else default_stop)
+    )
+    effective_target = (
+        resistance if isinstance(resistance, (int, float))
+        else price * 1.15  # 15% target
+    )
+    
+    # Calculate risk/reward
+    risk_reward = calculate_risk_reward(price, effective_target, effective_support)
+    
+    # Update support display value to show the effective level
+    support = effective_support
+    
+    return f"""
+Price Action: ${summary.price_action['current_price']:.2f} ({summary.price_action['daily_change_percent']:+.2f}%)
+Overall Signal: {summary.overall_signal.upper()} (Strength: {summary.signal_strength}/3)
+
+Key Indicators:
+1. Trend Analysis:
+   - {''.join(f"{ind.name}: {ind.interpretation}\n   " for ind in summary.trend_indicators)}
+
+2. Momentum and Oscillators:
+   - {''.join(f"{ind.name}: {ind.interpretation}\n   " for ind in summary.momentum_indicators)}
+   - CCI: {indicators.get('cci', 'N/A'):.1f} ({'Overbought' if safe_float(indicators.get('cci', 0)) > 100 
+                                               else 'Oversold' if safe_float(indicators.get('cci', 0)) < -100 
+                                               else 'Neutral'})
+   - Stochastic: %K={indicators.get('stoch', {}).get('k', 'N/A'):.1f}, %D={indicators.get('stoch', {}).get('d', 'N/A'):.1f}
+
+3. Volume: {summary.volume_analysis.interpretation}
+
+4. Price Levels and Support/Resistance:
+   - Current: ${price:.2f}
+   - Support: ${support}
+   - Resistance: ${resistance}
+   - Risk/Reward Ratio: {risk_reward:.1f}
+
+5. Technical Rating:
+   - Trend Score: {trend_confidence * 100:.0f}/100
+   - Momentum Score: {momentum_confidence * 100:.0f}/100
+   - Overall Rating: {(trend_confidence + momentum_confidence) * 50:.0f}/100
+
+6. Risk Assessment:
+   - Volatility: {summary.risk_metrics['volatility_percent']:.1f}% ATR
+   - Trend Strength: {summary.risk_metrics['trend_strength']:.1f}
+   - Risk Level: {str(summary.risk_metrics['risk_level']).upper()}
+
+Bollinger Bands:
+- Band Width: {indicators.get('bollinger_bands', {}).get('width', 'N/A'):.1f}%
+- Position: {'Outside Upper' if indicators.get('bollinger_bands') and safe_float(summary.price_action['current_price']) > safe_float(indicators['bollinger_bands'].get('upper', float('inf')))
+            else 'Outside Lower' if indicators.get('bollinger_bands') and safe_float(summary.price_action['current_price']) < safe_float(indicators['bollinger_bands'].get('lower', float('-inf')))
+            else 'Inside Bands' if indicators.get('bollinger_bands')
+            else 'No Bollinger Band Data'}
+
+Signal Confidence: {overall_confidence:.1%}
+Trade Setup:
+- Entry: ${price:.2f}
+- Target: ${resistance if isinstance(resistance, (int, float)) else 'N/A'}
+- Stop: ${support if isinstance(support, (int, float)) else 'N/A'}
+""".strip()

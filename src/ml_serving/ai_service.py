@@ -287,7 +287,7 @@ def consult(
         ]
     )
     # Get model server
-    llm = get_chat(backend=backend, model=model, **FIN_R1_ARGS)
+    llm = get_chat(backend=backend, model=model)
     chain = messages | llm | StrOutputParser() | JsonOutputParser() 
     chain = chain.with_retry(
         stop_after_attempt=max_retries

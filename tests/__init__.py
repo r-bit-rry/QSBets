@@ -1,3 +1,1 @@
-"""
-Test package for QSBets
-"""
+"""Tests package initialization"""
